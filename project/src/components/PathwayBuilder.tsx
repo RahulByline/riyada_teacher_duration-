@@ -1,17 +1,72 @@
-import React, { useState } from 'react';
-import { Plus, Calendar, Clock, Users, BookOpen, Target } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Calendar, Clock, Users, BookOpen, Target, Edit, X } from 'lucide-react';
 import { PathwayTimeline } from './pathway/PathwayTimeline';
 import { EventLibrary } from './pathway/EventLibrary';
 import { PathwaySettings } from './pathway/PathwaySettings';
 import { usePathway } from '../contexts/PathwayContext';
 
 export function PathwayBuilder() {
-  const { pathways, selectedPathway, setSelectedPathway, createPathway } = usePathway();
+  const { pathways, selectedPathway, setSelectedPathway, createPathway, updatePathway, deletePathway } = usePathway();
   const [showEventLibrary, setShowEventLibrary] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingPathway, setEditingPathway] = useState<any>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingPathway, setDeletingPathway] = useState<any>(null);
 
   const handleCreatePathway = () => {
     setShowCreateModal(true);
+  };
+
+  const handleEditPathway = (pathway: any) => {
+    setEditingPathway(pathway);
+    setShowEditModal(true);
+  };
+
+  const handleUpdatePathway = async (pathwayData: any) => {
+    try {
+      console.log('🔍 Updating pathway with data:', pathwayData);
+      
+      const pathwayPayload = {
+        title: pathwayData.title,
+        description: pathwayData.description,
+        duration: pathwayData.duration,
+        total_hours: pathwayData.totalHours,
+        status: pathwayData.status,
+        cefr_level: editingPathway.cefr_level
+      };
+      
+      console.log('📤 Sending pathway update payload:', pathwayPayload);
+      
+      await updatePathway(editingPathway.id, pathwayPayload);
+      
+      console.log('✅ Pathway updated successfully!');
+      setShowEditModal(false);
+      setEditingPathway(null);
+    } catch (error) {
+      console.error('❌ Error updating pathway:', error);
+      alert('Failed to update pathway. Check console for details.');
+    }
+  };
+
+  const handleDeletePathway = (pathway: any) => {
+    setDeletingPathway(pathway);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeletePathway = async () => {
+    try {
+      console.log('🗑️ Deleting pathway:', deletingPathway.id);
+      
+      await deletePathway(deletingPathway.id);
+      
+      console.log('✅ Pathway deleted successfully!');
+      setShowDeleteConfirm(false);
+      setDeletingPathway(null);
+    } catch (error) {
+      console.error('❌ Error deleting pathway:', error);
+      alert('Failed to delete pathway. Check console for details.');
+    }
   };
 
   const handleSavePathway = async (pathwayData: any) => {
@@ -105,12 +160,22 @@ export function PathwayBuilder() {
 
             <div className="flex justify-between items-center text-sm">
               <span className="text-slate-600">68% Complete</span>
-              <button 
-                onClick={() => setSelectedPathway(pathway)}
-                className="text-blue-600 font-medium hover:text-blue-700"
-              >
-                Edit Pathway
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => handleEditPathway(pathway)}
+                  className="text-blue-600 font-medium hover:text-blue-700 flex items-center gap-1"
+                >
+                  <Edit className="w-3 h-3" />
+                  Edit
+                </button>
+                <button 
+                  onClick={() => handleDeletePathway(pathway)}
+                  className="text-red-600 font-medium hover:text-red-700 flex items-center gap-1"
+                >
+                  <X className="w-3 h-3" />
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -194,11 +259,175 @@ export function PathwayBuilder() {
           </div>
         </div>
       )}
+
+      {/* Edit Pathway Modal */}
+      {showEditModal && editingPathway && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900">Edit Pathway</h3>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingPathway(null);
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.target as HTMLFormElement);
+              handleUpdatePathway({
+                title: formData.get('title'),
+                description: formData.get('description'),
+                duration: parseInt(formData.get('duration') as string),
+                totalHours: parseInt(formData.get('totalHours') as string),
+                status: formData.get('status')
+              });
+            }}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Title</label>
+                  <input
+                    name="title"
+                    type="text"
+                    required
+                    defaultValue={editingPathway.title}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter pathway title"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
+                  <textarea
+                    name="description"
+                    rows={3}
+                    defaultValue={editingPathway.description}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter pathway description"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Duration (months)</label>
+                    <input
+                      name="duration"
+                      type="number"
+                      min="1"
+                      max="12"
+                      defaultValue={editingPathway.duration}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Total Hours</label>
+                    <input
+                      name="totalHours"
+                      type="number"
+                      min="1"
+                      defaultValue={editingPathway.total_hours}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
+                  <select
+                    name="status"
+                    defaultValue={editingPathway.status}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingPathway(null);
+                  }}
+                  className="px-4 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Update Pathway
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && deletingPathway && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                <X className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">Delete Pathway</h3>
+              <p className="text-slate-600 mb-6">
+                Are you sure you want to delete "<strong>{deletingPathway.title}</strong>"? 
+                This action cannot be undone.
+              </p>
+              <div className="flex justify-center gap-3">
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setDeletingPathway(null);
+                  }}
+                  className="px-4 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeletePathway}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+                  Delete Pathway
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Pathway Builder Interface */}
       <div className="bg-white rounded-xl border border-slate-200">
         <div className="p-6 border-b border-slate-200">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-slate-900">Pathway Builder</h3>
+            <div className="flex items-center gap-4">
+              <h3 className="text-lg font-semibold text-slate-900">Pathway Builder</h3>
+              {pathways.length > 0 && (
+                <select
+                  value={selectedPathway?.id || ''}
+                  onChange={(e) => {
+                    const pathway = pathways.find(p => p.id === e.target.value);
+                    setSelectedPathway(pathway || null);
+                  }}
+                  className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select a pathway to edit</option>
+                  {pathways.map((pathway) => (
+                    <option key={pathway.id} value={pathway.id}>
+                      {pathway.title}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
             <div className="flex gap-2">
               <button 
                 onClick={() => setShowEventLibrary(!showEventLibrary)}

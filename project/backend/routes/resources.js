@@ -54,15 +54,32 @@ router.get('/:id', async (req, res) => {
 // Create new resource
 router.post('/', async (req, res) => {
   try {
-    const { title, description, type, url, file_path, file_size, mime_type, tags, created_by } = req.body;
+    const { title, description, type, format, category, file_size, tags, status, is_public, version, program_id, month_number, component_id } = req.body;
+
+    console.log('📥 Received resource data:', { title, description, type, format, category, file_size, tags, status, is_public, version, program_id, month_number, component_id });
 
     if (!title || !type) {
       return res.status(400).json({ error: 'Title and type are required' });
     }
 
+    // Convert undefined values to null for MySQL
+    const safeDescription = description || null;
+    const safeCategory = category || 'trainer-resources';
+    const safeFormat = format || 'pdf';
+    const safeFileSize = file_size || '0 KB';
+    const safeTags = tags || [];
+    const safeStatus = status || 'draft';
+    const safeIsPublic = is_public || false;
+    const safeVersion = version || '1.0';
+    const safeProgramId = program_id || null;
+    const safeMonthNumber = month_number || null;
+    const safeComponentId = component_id || null;
+
+    console.log('🔧 Database insert data:', [title, safeDescription, type, safeFormat, safeCategory, safeFileSize, JSON.stringify(safeTags), safeStatus, safeIsPublic, safeVersion, safeProgramId, safeMonthNumber, safeComponentId]);
+
     const result = await executeQuery(
-      'INSERT INTO resources (title, description, type, url, file_path, file_size, mime_type, tags, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [title, description, type, url, file_path, file_size, mime_type, JSON.stringify(tags), created_by]
+      'INSERT INTO resources (title, description, type, format, category, file_size, tags, status, is_public, version, program_id, month_number, component_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [title, safeDescription, type, safeFormat, safeCategory, safeFileSize, JSON.stringify(safeTags), safeStatus, safeIsPublic, safeVersion, safeProgramId, safeMonthNumber, safeComponentId]
     );
 
     const newResource = await executeQuery(
@@ -76,7 +93,16 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Create resource error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      sqlMessage: error.sqlMessage
+    });
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

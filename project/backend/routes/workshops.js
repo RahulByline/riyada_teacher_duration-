@@ -60,9 +60,17 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Required fields missing' });
     }
 
+    // Convert undefined values to null for MySQL
+    const safeDescription = description || null;
+    const safeFacilitatorId = facilitator_id || null;
+    const safeMaxParticipants = max_participants || 20;
+    const safeLocation = location || null;
+    const safeMaterialsRequired = materials_required || [];
+    const safePrerequisites = prerequisites || [];
+
     const result = await executeQuery(
       'INSERT INTO workshops (pathway_id, title, description, facilitator_id, max_participants, workshop_date, duration_hours, location, materials_required, prerequisites) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [pathway_id, title, description, facilitator_id, max_participants, workshop_date, duration_hours, location, JSON.stringify(materials_required), JSON.stringify(prerequisites)]
+      [pathway_id, title, safeDescription, safeFacilitatorId, safeMaxParticipants, workshop_date, duration_hours, safeLocation, JSON.stringify(safeMaterialsRequired), JSON.stringify(safePrerequisites)]
     );
 
     const newWorkshop = await executeQuery(
@@ -76,7 +84,16 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Create workshop error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      sqlMessage: error.sqlMessage
+    });
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

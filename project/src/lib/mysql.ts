@@ -158,6 +158,12 @@ class MySQLClient {
     });
   }
 
+  async deleteLearningEvent(eventId: string) {
+    return this.makeRequest(`/learning-events/${eventId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Participants
   async getParticipants() {
     return this.makeRequest('/participants');

@@ -72,6 +72,73 @@ export function ResourceLibrary() {
   const [filterCategory, setFilterCategory] = useState('all');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedResource, setSelectedResource] = useState<any>(null);
+  const [uploadForm, setUploadForm] = useState({
+    title: '',
+    description: '',
+    type: 'document' as const,
+    category: 'trainer-resources' as const,
+    format: 'pdf' as const,
+    tags: '',
+    fileSize: '',
+    programId: '',
+    monthNumber: null as number | null,
+    componentId: ''
+  });
+  const [uploading, setUploading] = useState(false);
+
+  const handleUploadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!uploadForm.title || !uploadForm.description) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      
+      const resourceData = {
+        title: uploadForm.title,
+        description: uploadForm.description,
+        type: uploadForm.type,
+        format: uploadForm.format,
+        category: uploadForm.category,
+        fileSize: uploadForm.fileSize || '0 KB',
+        tags: uploadForm.tags ? uploadForm.tags.split(',').map(tag => tag.trim()) : [],
+        isPublic: false,
+        version: '1.0',
+        programId: uploadForm.programId || undefined,
+        monthNumber: uploadForm.monthNumber || undefined,
+        componentId: uploadForm.componentId || undefined
+      };
+
+      console.log('Submitting resource:', resourceData);
+      
+      await createResource(resourceData);
+      
+      // Reset form and close modal
+      setUploadForm({
+        title: '',
+        description: '',
+        type: 'document',
+        category: 'trainer-resources',
+        format: 'pdf',
+        tags: '',
+        fileSize: '',
+        programId: '',
+        monthNumber: null,
+        componentId: ''
+      });
+      setShowUploadModal(false);
+      
+      alert('Resource created successfully!');
+    } catch (error) {
+      console.error('Error creating resource:', error);
+      alert('Failed to create resource. Check console for details.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // Create program structure from pathways data
   const program = pathways.find(p => p.id === selectedProgram) || pathways[0];
@@ -638,20 +705,27 @@ export function ResourceLibrary() {
               </div>
             </div>
             
-            <div className="p-6 space-y-4">
+            <form onSubmit={handleUploadSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Resource Title</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Resource Title *</label>
                   <input
                     type="text"
+                    required
+                    value={uploadForm.title}
+                    onChange={(e) => setUploadForm(prev => ({ ...prev, title: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Enter resource title"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Resource Type</label>
-                  <select className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option value="">Select type</option>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Resource Type *</label>
+                  <select 
+                    required
+                    value={uploadForm.type}
+                    onChange={(e) => setUploadForm(prev => ({ ...prev, type: e.target.value as any }))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
                     <option value="handbook">Handbook</option>
                     <option value="guide">Guide</option>
                     <option value="presentation">Presentation</option>
@@ -665,9 +739,12 @@ export function ResourceLibrary() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Description *</label>
                 <textarea
                   rows={3}
+                  required
+                  value={uploadForm.description}
+                  onChange={(e) => setUploadForm(prev => ({ ...prev, description: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Describe the resource and its purpose"
                 />
@@ -676,7 +753,11 @@ export function ResourceLibrary() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Program Month</label>
-                  <select className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <select 
+                    value={uploadForm.monthNumber || ''}
+                    onChange={(e) => setUploadForm(prev => ({ ...prev, monthNumber: e.target.value ? parseInt(e.target.value) : null }))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
                     <option value="">Select month</option>
                     {program.months.map(month => (
                       <option key={month.number} value={month.number}>
@@ -687,7 +768,11 @@ export function ResourceLibrary() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Component</label>
-                  <select className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <select 
+                    value={uploadForm.componentId}
+                    onChange={(e) => setUploadForm(prev => ({ ...prev, componentId: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
                     <option value="">Select component</option>
                     <option value="orientation">Program Orientation</option>
                     <option value="assessment">CEFR Assessment</option>
@@ -696,8 +781,11 @@ export function ResourceLibrary() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Category</label>
-                  <select className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option value="">Select category</option>
+                  <select 
+                    value={uploadForm.category}
+                    onChange={(e) => setUploadForm(prev => ({ ...prev, category: e.target.value as any }))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
                     <option value="trainer-resources">Trainer Resources</option>
                     <option value="participant-materials">Participant Materials</option>
                     <option value="assessment-tools">Assessment Tools</option>
@@ -711,6 +799,8 @@ export function ResourceLibrary() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">Tags (comma-separated)</label>
                 <input
                   type="text"
+                  value={uploadForm.tags}
+                  onChange={(e) => setUploadForm(prev => ({ ...prev, tags: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="e.g., grammar, workshop, interactive"
                 />
@@ -720,23 +810,31 @@ export function ResourceLibrary() {
                 <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
                 <p className="text-slate-600 mb-2">Drag and drop your file here, or click to browse</p>
                 <p className="text-sm text-slate-500">Supports PDF, PPTX, DOCX, MP4, ZIP files up to 100MB</p>
-                <button className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                <button 
+                  type="button"
+                  className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
                   Choose File
                 </button>
               </div>
               
               <div className="flex justify-end gap-3 pt-4">
                 <button
+                  type="button"
                   onClick={() => setShowUploadModal(false)}
                   className="px-6 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
                 >
                   Cancel
                 </button>
-                <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  Upload Resource
+                <button 
+                  type="submit"
+                  disabled={uploading}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {uploading ? 'Creating...' : 'Create Resource'}
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
