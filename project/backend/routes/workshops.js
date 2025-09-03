@@ -1,5 +1,6 @@
 import express from 'express';
 import { executeQuery } from '../config/database.js';
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -60,14 +61,25 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Required fields missing' });
     }
 
+    // Generate a UUID for the workshop
+    const workshopId = crypto.randomUUID();
+
+    // Handle undefined parameters by providing default values
+    const safeDescription = description || null;
+    const safeFacilitatorId = facilitator_id || null;
+    const safeMaxParticipants = max_participants || 20;
+    const safeLocation = location || null;
+    const safeMaterialsRequired = materials_required ? JSON.stringify(materials_required) : null;
+    const safePrerequisites = prerequisites ? JSON.stringify(prerequisites) : null;
+
     const result = await executeQuery(
-      'INSERT INTO workshops (pathway_id, title, description, facilitator_id, max_participants, workshop_date, duration_hours, location, materials_required, prerequisites) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [pathway_id, title, description, facilitator_id, max_participants, workshop_date, duration_hours, location, JSON.stringify(materials_required), JSON.stringify(prerequisites)]
+      'INSERT INTO workshops (id, pathway_id, title, description, facilitator_id, max_participants, workshop_date, duration_hours, location, materials_required, prerequisites) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [workshopId, pathway_id, title, safeDescription, safeFacilitatorId, safeMaxParticipants, workshop_date, duration_hours, safeLocation, safeMaterialsRequired, safePrerequisites]
     );
 
     const newWorkshop = await executeQuery(
       'SELECT * FROM workshops WHERE id = ?',
-      [result.insertId]
+      [workshopId]
     );
 
     res.status(201).json({
@@ -86,9 +98,18 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { title, description, facilitator_id, max_participants, workshop_date, duration_hours, location, materials_required, prerequisites } = req.body;
 
+    // Handle undefined parameters by providing safe values
+    const safeTitle = title || '';
+    const safeDescription = description || null;
+    const safeFacilitatorId = facilitator_id || null;
+    const safeMaxParticipants = max_participants || 20;
+    const safeLocation = location || null;
+    const safeMaterialsRequired = materials_required ? JSON.stringify(materials_required) : null;
+    const safePrerequisites = prerequisites ? JSON.stringify(prerequisites) : null;
+
     const result = await executeQuery(
       'UPDATE workshops SET title = ?, description = ?, facilitator_id = ?, max_participants = ?, workshop_date = ?, duration_hours = ?, location = ?, materials_required = ?, prerequisites = ? WHERE id = ?',
-      [title, description, facilitator_id, max_participants, workshop_date, duration_hours, location, JSON.stringify(materials_required), JSON.stringify(prerequisites), id]
+      [safeTitle, safeDescription, safeFacilitatorId, safeMaxParticipants, workshop_date, duration_hours, safeLocation, safeMaterialsRequired, safePrerequisites, id]
     );
 
     if (result.affectedRows === 0) {

@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { Clock, Users, MapPin, Plus, Calendar } from 'lucide-react';
-import { WorkshopSchedule } from './workshop/WorkshopSchedule';
+import { Clock, Users, MapPin, Plus, Calendar, List } from 'lucide-react';
+
 import { ResourceManager } from './workshop/ResourceManager';
+import { WorkshopAgendaManager } from './workshop/WorkshopAgendaManager';
 import { useWorkshops } from '../hooks/useWorkshops';
 
 export function WorkshopPlanner() {
   const { workshops, loading, createWorkshop } = useWorkshops();
   const [selectedWorkshop, setSelectedWorkshop] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [activeView, setActiveView] = useState<'overview' | 'agenda' | 'resources'>('overview');
 
   const handleCreateWorkshop = () => {
     setShowCreateModal(true);
@@ -89,15 +91,125 @@ export function WorkshopPlanner() {
               </div>
             </div>
 
-            <button 
-              onClick={() => setSelectedWorkshop(workshop)}
-              className="w-full bg-slate-50 text-slate-700 py-2 rounded-lg hover:bg-slate-100 transition-colors font-medium"
-            >
-              Plan Workshop
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => {
+                  setSelectedWorkshop(workshop);
+                  setActiveView('agenda');
+                }}
+                className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+              >
+                <List className="w-4 h-4 inline mr-1" />
+                Agenda
+              </button>
+              <button 
+                onClick={() => {
+                  setSelectedWorkshop(workshop);
+                  setActiveView('overview');
+                }}
+                className="flex-1 bg-slate-50 text-slate-700 py-2 rounded-lg hover:bg-slate-100 transition-colors font-medium text-sm"
+              >
+                Details
+              </button>
+            </div>
           </div>
         ))}
       </div>
+
+      {/* Selected Workshop Views */}
+      {selectedWorkshop && (
+        <div className="bg-white rounded-xl border border-slate-200">
+          {/* View Navigation */}
+          <div className="border-b border-slate-200">
+            <nav className="flex space-x-8 px-6">
+              <button
+                onClick={() => setActiveView('overview')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeView === 'overview'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                Overview
+              </button>
+              <button
+                onClick={() => setActiveView('agenda')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeView === 'agenda'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                Agenda
+              </button>
+
+              <button
+                onClick={() => setActiveView('resources')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeView === 'resources'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                Resources
+              </button>
+            </nav>
+          </div>
+
+          {/* View Content */}
+          <div className="p-6">
+            {activeView === 'overview' && (
+              <div className="space-y-4">
+                <h3 className="text-xl font-semibold text-slate-900">{selectedWorkshop.title}</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <Calendar className="w-4 h-4" />
+                      <span>Date: {new Date(selectedWorkshop.date).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <Clock className="w-4 h-4" />
+                      <span>Duration: {selectedWorkshop.duration}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <Users className="w-4 h-4" />
+                        <span>Participants: {selectedWorkshop.expectedParticipants}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <MapPin className="w-4 h-4" />
+                      <span>Location: {selectedWorkshop.location}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <span className="font-medium">Status:</span>
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        selectedWorkshop.status === 'ready' ? 'bg-green-100 text-green-700' :
+                        selectedWorkshop.status === 'planning' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-slate-100 text-slate-700'
+                      }`}>
+                        {selectedWorkshop.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeView === 'agenda' && (
+              <WorkshopAgendaManager workshop={selectedWorkshop} />
+            )}
+
+
+
+            {activeView === 'resources' && (
+              <ResourceManager />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Create Workshop Modal */}
       {showCreateModal && (
@@ -182,55 +294,7 @@ export function WorkshopPlanner() {
           </div>
         </div>
       )}
-      {/* Workshop Planning Interface */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2">
-          <div className="bg-white rounded-xl border border-slate-200">
-            <div className="p-6 border-b border-slate-200">
-              <h3 className="text-lg font-semibold text-slate-900">
-                Workshop Schedule {selectedWorkshop && `- ${selectedWorkshop.title}`}
-              </h3>
-              <p className="text-slate-600 mt-1">
-                {selectedWorkshop ? 'Drag and drop to organize your workshop agenda' : 'Select a workshop to plan its schedule'}
-              </p>
-            </div>
-            <WorkshopSchedule selectedWorkshop={selectedWorkshop} />
-          </div>
-        </div>
 
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl p-6 border border-slate-200">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Workshop Settings</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Duration</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <input type="number" placeholder="Hours" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" />
-                  <input type="number" placeholder="Minutes" className="px-3 py-2 border border-slate-200 rounded-lg text-sm" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Break Duration</label>
-                <select className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
-                  <option>15 minutes</option>
-                  <option>30 minutes</option>
-                  <option>45 minutes</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Lunch Break</label>
-                <select className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
-                  <option>60 minutes</option>
-                  <option>45 minutes</option>
-                  <option>90 minutes</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <ResourceManager />
-        </div>
-      </div>
     </div>
   );
 }
