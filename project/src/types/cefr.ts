@@ -37,6 +37,36 @@ export interface AssessmentQuestion {
   points: number;
 }
 
+export interface LearningEvent {
+  id?: string;
+  title: string;
+  description?: string;
+  type: 'workshop' | 'elearning' | 'assessment' | 'assignment' | 'group' | 'checkpoint';
+  startDate: string;
+  endDate: string;
+  duration: number;
+  format: 'online' | 'offline' | 'blended';
+  objectives: string[];
+  resources: string[];
+  dependencies: string[];
+  status?: string;
+}
+
+export interface Pathway {
+  id: string;
+  title: string;
+  description?: string;
+  duration: number;
+  total_hours: number;
+  status: 'draft' | 'active' | 'completed' | 'archived';
+  cefr_level?: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  events: LearningEvent[];
+  participants: any[];
+}
+
 export const CEFR_LEVELS: CEFRLevel[] = [
   {
     code: 'A1',

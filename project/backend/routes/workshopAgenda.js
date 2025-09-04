@@ -81,6 +81,12 @@ router.post('/', async (req, res) => {
       notes
     } = req.body;
 
+    // Check for undefined values (which MySQL2 doesn't allow)
+    if (workshop_id === undefined || title === undefined || activity_type === undefined || start_time === undefined || end_time === undefined) {
+      console.log('❌ Undefined values detected:', { workshop_id, title, activity_type, start_time, end_time });
+      return res.status(400).json({ error: 'Required fields cannot be undefined' });
+    }
+
     if (!workshop_id || !title || !activity_type || !start_time || !end_time) {
       return res.status(400).json({ error: 'Required fields missing' });
     }
@@ -138,6 +144,12 @@ router.put('/:id', async (req, res) => {
       materials_needed,
       notes
     } = req.body;
+
+    // Check for undefined values (which MySQL2 doesn't allow)
+    if (title === undefined || activity_type === undefined || start_time === undefined || end_time === undefined) {
+      console.log('❌ Undefined values detected in update:', { title, activity_type, start_time, end_time });
+      return res.status(400).json({ error: 'Required fields cannot be undefined' });
+    }
 
     // Handle undefined parameters
     const safeTitle = title || '';

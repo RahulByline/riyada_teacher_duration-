@@ -1,5 +1,6 @@
 import express from 'express';
 import { executeQuery } from '../config/database.js';
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -25,16 +26,18 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Required fields missing' });
     }
 
+    // Generate a UUID for the feedback response
+    const feedbackId = crypto.randomUUID();
     const submission_date = new Date().toISOString();
 
     const result = await executeQuery(
-      'INSERT INTO feedback_responses (participant_id, event_id, event_type, submission_date, responses, overall_rating, comments, anonymous) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [participant_id, event_id, event_type, submission_date, JSON.stringify(responses), overall_rating, comments, anonymous || false]
+      'INSERT INTO feedback_responses (id, participant_id, event_id, event_type, submission_date, responses, overall_rating, comments, anonymous) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [feedbackId, participant_id, event_id, event_type, submission_date, JSON.stringify(responses), overall_rating, comments, anonymous || false]
     );
 
     res.status(201).json({
       message: 'Feedback submitted successfully',
-      feedback_id: result.insertId
+      feedback_id: feedbackId
     });
   } catch (error) {
     console.error('Submit feedback error:', error);

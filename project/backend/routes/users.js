@@ -42,6 +42,12 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { name, role, avatar_url } = req.body;
 
+    // Check for undefined values (which MySQL2 doesn't allow)
+    if (name === undefined || role === undefined) {
+      console.log('❌ Undefined values detected in update:', { name, role });
+      return res.status(400).json({ error: 'Required fields cannot be undefined' });
+    }
+
     const result = await executeQuery(
       'UPDATE users SET name = ?, role = ?, avatar_url = ? WHERE id = ?',
       [name, role, avatar_url, id]

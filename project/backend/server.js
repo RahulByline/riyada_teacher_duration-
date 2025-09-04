@@ -33,6 +33,7 @@ const PORT = process.env.PORT || 5001;
 app.use(cors({
   origin: [
     process.env.FRONTEND_URL,
+    'https://learning-pathway.bylinelms.com',
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:5175',

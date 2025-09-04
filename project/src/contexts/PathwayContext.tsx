@@ -39,6 +39,7 @@ interface PathwayContextType {
   updatePathway: (id: string, pathway: Partial<Pathway>) => Promise<void>;
   deletePathway: (id: string) => Promise<void>;
   addEvent: (pathwayId: string, event: Omit<LearningEvent, 'id'>) => Promise<void>;
+  deleteEvent: (pathwayId: string, eventId: string) => Promise<void>;
   refetch: () => Promise<void>;
 }
 
@@ -179,6 +180,9 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
       
+      console.log('🔍 Frontend event data:', event);
+      console.log('🔍 Pathway ID:', pathwayId);
+      
       // Transform frontend event data to match backend schema
       const backendEventData = {
         pathway_id: pathwayId,
@@ -191,18 +195,58 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
         format: event.format,
         objectives: event.objectives,
         resources: event.resources,
-        dependencies: event.dependencies
+        dependencies: event.dependencies,
+        month_index: (event as any).month_index || 1,
+        week_index: (event as any).week_index || 1
       };
+
+      console.log('📤 Sending to backend:', backendEventData);
 
       const response = await mysqlClient.createLearningEvent(backendEventData);
       
+      console.log('📥 Backend response:', response);
+      
+      // Handle different response structures
+      let eventData = null;
       if (response.event) {
+        eventData = response.event;
+      } else if (response.resource) {
+        eventData = response.resource;
+      } else if (response.data) {
+        eventData = response.data;
+      } else if (response) {
+        eventData = response;
+      }
+      
+      if (eventData) {
+        console.log('✅ Event data received:', eventData);
+        console.log('🔍 Event ID check:', { id: eventData.id, idType: typeof eventData.id, idLength: eventData.id?.length });
+        
+        // Ensure we have a valid ID
+        if (!eventData.id || eventData.id === '') {
+          console.error('❌ Invalid event ID:', eventData.id);
+          throw new Error('Event created without valid ID');
+        }
+        
         // Transform the created event to match frontend interface
-        const newEvent: LearningEvent = {
-          ...response.event,
-          startDate: response.event.start_date,
-          endDate: response.event.end_date
+        const newEvent: LearningEvent & { month_index?: number; week_index?: number } = {
+          id: eventData.id,
+          title: eventData.title,
+          description: eventData.description || '',
+          type: eventData.type,
+          startDate: eventData.start_date || eventData.startDate || new Date().toISOString(),
+          endDate: eventData.end_date || eventData.endDate || new Date().toISOString(),
+          duration: eventData.duration || 2,
+          format: eventData.format || 'online',
+          objectives: eventData.objectives ? (Array.isArray(eventData.objectives) ? eventData.objectives : JSON.parse(eventData.objectives)) : [],
+          resources: eventData.resources ? (Array.isArray(eventData.resources) ? eventData.resources : JSON.parse(eventData.resources)) : [],
+          dependencies: eventData.dependencies ? (Array.isArray(eventData.dependencies) ? eventData.dependencies : JSON.parse(eventData.dependencies)) : [],
+          status: eventData.status || 'scheduled',
+          month_index: eventData.month_index || 1,
+          week_index: eventData.week_index || 1
         };
+        
+        console.log('🔄 Transformed event:', newEvent);
         
         // Update local state
         setPathways(prev => prev.map(pathway => 
@@ -210,9 +254,49 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
             ? { ...pathway, events: [...pathway.events, newEvent] }
             : pathway
         ));
+        
+        // Also update selectedPathway if it's the current pathway
+        setSelectedPathway(prev => 
+          prev && prev.id === pathwayId 
+            ? { ...prev, events: [...prev.events, newEvent] }
+            : prev
+        );
+        
+        console.log('✅ Local state updated');
+      } else {
+        console.error('❌ No event data in response:', response);
+        throw new Error('No event data received from backend');
       }
     } catch (err) {
       console.error('Error adding event:', err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteEvent = async (pathwayId: string, eventId: string) => {
+    try {
+      setLoading(true);
+      
+      // Call backend to delete event
+      await mysqlClient.deleteLearningEvent(eventId);
+      
+      // Update local state
+      setPathways(prev => prev.map(pathway => 
+        pathway.id === pathwayId 
+          ? { ...pathway, events: pathway.events.filter(event => event.id !== eventId) }
+          : pathway
+      ));
+      
+      // Also update selectedPathway if it's the current pathway
+      setSelectedPathway(prev => 
+        prev && prev.id === pathwayId 
+          ? { ...prev, events: prev.events.filter(event => event.id !== eventId) }
+          : prev
+      );
+    } catch (err) {
+      console.error('Error deleting event:', err);
       throw err;
     } finally {
       setLoading(false);
@@ -229,6 +313,7 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
       updatePathway,
       deletePathway,
       addEvent,
+      deleteEvent,
       refetch
     }}>
       {children}

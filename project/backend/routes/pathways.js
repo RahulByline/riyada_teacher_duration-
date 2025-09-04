@@ -1,5 +1,6 @@
 import express from 'express';
 import { executeQuery } from '../config/database.js';
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -43,6 +44,12 @@ router.post('/', async (req, res) => {
 
     console.log('📥 Received pathway data:', { title, description, duration, total_hours, cefr_level, created_by });
 
+    // Check for undefined values (which MySQL2 doesn't allow)
+    if (title === undefined || duration === undefined || total_hours === undefined || created_by === undefined) {
+      console.log('❌ Undefined values detected:', { title, duration, total_hours, created_by });
+      return res.status(400).json({ error: 'Required fields cannot be undefined' });
+    }
+
     if (!title || !duration || !total_hours || !created_by) {
       return res.status(400).json({ error: 'Title, duration, total_hours, and created_by are required' });
     }
@@ -53,14 +60,17 @@ router.post('/', async (req, res) => {
 
     console.log('🔧 Safe values for database:', { title, safeDescription, duration, total_hours, safeCefrLevel, created_by });
 
+    // Generate a UUID for the pathway
+    const pathwayId = crypto.randomUUID();
+
     const result = await executeQuery(
-      'INSERT INTO pathways (title, description, duration, total_hours, cefr_level, created_by) VALUES (?, ?, ?, ?, ?, ?)',
-      [title, safeDescription, duration, total_hours, safeCefrLevel, created_by]
+      'INSERT INTO pathways (id, title, description, duration, total_hours, cefr_level, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [pathwayId, title, safeDescription, duration, total_hours, safeCefrLevel, created_by]
     );
 
     const newPathway = await executeQuery(
       'SELECT * FROM pathways WHERE id = ?',
-      [result.insertId]
+      [pathwayId]
     );
 
     res.status(201).json({
@@ -78,6 +88,12 @@ router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { title, description, duration, total_hours, status, cefr_level } = req.body;
+
+    // Check for undefined values (which MySQL2 doesn't allow)
+    if (title === undefined || duration === undefined || total_hours === undefined) {
+      console.log('❌ Undefined values detected in update:', { title, duration, total_hours });
+      return res.status(400).json({ error: 'Required fields cannot be undefined' });
+    }
 
     // Handle undefined values by converting them to null
     const safeDescription = description || null;

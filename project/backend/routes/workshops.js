@@ -8,7 +8,7 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const workshops = await executeQuery(
-      'SELECT w.*, p.title as pathway_title, u.name as facilitator_name FROM workshops w LEFT JOIN pathways p ON w.pathway_id = p.id LEFT JOIN users u ON w.facilitator_id = u.id ORDER BY w.workshop_date ASC'
+      'SELECT w.*, u.name as facilitator_name, p.title as pathway_title FROM workshops w LEFT JOIN users u ON w.facilitator_id = u.id LEFT JOIN pathways p ON w.pathway_id = p.id ORDER BY w.workshop_date DESC'
     );
     res.json({ workshops });
   } catch (error) {
@@ -22,7 +22,7 @@ router.get('/pathway/:pathwayId', async (req, res) => {
   try {
     const { pathwayId } = req.params;
     const workshops = await executeQuery(
-      'SELECT w.*, u.name as facilitator_name FROM workshops w LEFT JOIN users u ON w.facilitator_id = u.id WHERE w.pathway_id = ? ORDER BY w.workshop_date ASC',
+      'SELECT w.*, u.name as facilitator_name FROM workshops w LEFT JOIN users u ON w.facilitator_id = u.id WHERE w.pathway_id = ? ORDER BY w.workshop_date DESC',
       [pathwayId]
     );
     res.json({ workshops });
@@ -37,14 +37,14 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const workshops = await executeQuery(
-      'SELECT w.*, p.title as pathway_title, u.name as facilitator_name FROM workshops w LEFT JOIN pathways p ON w.pathway_id = p.id LEFT JOIN users u ON w.facilitator_id = u.id WHERE w.id = ?',
+      'SELECT w.*, u.name as facilitator_name, p.title as pathway_title FROM workshops w LEFT JOIN users u ON w.facilitator_id = u.id LEFT JOIN pathways p ON w.pathway_id = p.id WHERE w.id = ?',
       [id]
     );
-
+    
     if (workshops.length === 0) {
       return res.status(404).json({ error: 'Workshop not found' });
     }
-
+    
     res.json({ workshop: workshops[0] });
   } catch (error) {
     console.error('Get workshop error:', error);
@@ -55,10 +55,27 @@ router.get('/:id', async (req, res) => {
 // Create new workshop
 router.post('/', async (req, res) => {
   try {
-    const { pathway_id, title, description, facilitator_id, max_participants, workshop_date, duration_hours, location, materials_required, prerequisites } = req.body;
+    const { 
+      title, 
+      description, 
+      facilitator_id, 
+      max_participants, 
+      workshop_date, 
+      duration_hours, 
+      location, 
+      pathway_id, 
+      materials_required, 
+      prerequisites 
+    } = req.body;
 
-    if (!pathway_id || !title || !workshop_date || !duration_hours) {
-      return res.status(400).json({ error: 'Required fields missing' });
+    // Check for undefined values (which MySQL2 doesn't allow)
+    if (title === undefined || workshop_date === undefined || duration_hours === undefined) {
+      console.log('❌ Undefined values detected:', { title, workshop_date, duration_hours });
+      return res.status(400).json({ error: 'Required fields cannot be undefined' });
+    }
+
+    if (!title || !workshop_date || !duration_hours) {
+      return res.status(400).json({ error: 'Title, workshop date, and duration are required' });
     }
 
     // Generate a UUID for the workshop
@@ -69,12 +86,13 @@ router.post('/', async (req, res) => {
     const safeFacilitatorId = facilitator_id || null;
     const safeMaxParticipants = max_participants || 20;
     const safeLocation = location || null;
+    const safePathwayId = pathway_id || null;
     const safeMaterialsRequired = materials_required ? JSON.stringify(materials_required) : null;
     const safePrerequisites = prerequisites ? JSON.stringify(prerequisites) : null;
 
     const result = await executeQuery(
       'INSERT INTO workshops (id, pathway_id, title, description, facilitator_id, max_participants, workshop_date, duration_hours, location, materials_required, prerequisites) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [workshopId, pathway_id, title, safeDescription, safeFacilitatorId, safeMaxParticipants, workshop_date, duration_hours, safeLocation, safeMaterialsRequired, safePrerequisites]
+      [workshopId, safePathwayId, title, safeDescription, safeFacilitatorId, safeMaxParticipants, workshop_date, duration_hours, safeLocation, safeMaterialsRequired, safePrerequisites]
     );
 
     const newWorkshop = await executeQuery(
@@ -96,7 +114,13 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, facilitator_id, max_participants, workshop_date, duration_hours, location, materials_required, prerequisites } = req.body;
+    const { title, description, facilitator_id, max_participants, workshop_date, duration_hours, location, pathway_id, materials_required, prerequisites } = req.body;
+
+    // Check for undefined values (which MySQL2 doesn't allow)
+    if (title === undefined || workshop_date === undefined || duration_hours === undefined) {
+      console.log('❌ Undefined values detected in update:', { title, workshop_date, duration_hours });
+      return res.status(400).json({ error: 'Required fields cannot be undefined' });
+    }
 
     // Handle undefined parameters by providing safe values
     const safeTitle = title || '';
@@ -104,12 +128,13 @@ router.put('/:id', async (req, res) => {
     const safeFacilitatorId = facilitator_id || null;
     const safeMaxParticipants = max_participants || 20;
     const safeLocation = location || null;
+    const safePathwayId = pathway_id || null;
     const safeMaterialsRequired = materials_required ? JSON.stringify(materials_required) : null;
     const safePrerequisites = prerequisites ? JSON.stringify(prerequisites) : null;
 
     const result = await executeQuery(
-      'UPDATE workshops SET title = ?, description = ?, facilitator_id = ?, max_participants = ?, workshop_date = ?, duration_hours = ?, location = ?, materials_required = ?, prerequisites = ? WHERE id = ?',
-      [safeTitle, safeDescription, safeFacilitatorId, safeMaxParticipants, workshop_date, duration_hours, safeLocation, safeMaterialsRequired, safePrerequisites, id]
+      'UPDATE workshops SET title = ?, description = ?, facilitator_id = ?, max_participants = ?, workshop_date = ?, duration_hours = ?, location = ?, pathway_id = ?, materials_required = ?, prerequisites = ? WHERE id = ?',
+      [safeTitle, safeDescription, safeFacilitatorId, safeMaxParticipants, workshop_date, duration_hours, safeLocation, safePathwayId, safeMaterialsRequired, safePrerequisites, id]
     );
 
     if (result.affectedRows === 0) {

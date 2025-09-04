@@ -59,6 +59,12 @@ router.post('/', async (req, res) => {
       availability, notes
     } = req.body;
 
+    // Check for undefined values (which MySQL2 doesn't allow)
+    if (first_name === undefined || last_name === undefined || email === undefined || position === undefined || school === undefined || years_experience === undefined) {
+      console.log('❌ Undefined values detected:', { first_name, last_name, email, position, school, years_experience });
+      return res.status(400).json({ error: 'Required fields cannot be undefined' });
+    }
+
     if (!first_name || !last_name || !email || !position || !school || !years_experience) {
       return res.status(400).json({ error: 'Required fields missing' });
     }

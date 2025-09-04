@@ -36,51 +36,31 @@ export function useResources(programId?: string, monthNumber?: number, component
     try {
       setLoading(true);
       
-      let query = supabase
-        .from('resources')
-        .select(`
-          *,
-          uploaded_by_user:users!resources_uploaded_by_fkey(name),
-          program:pathways(title)
-        `)
-        .eq('status', 'approved')
-        .order('created_at', { ascending: false });
+      // Use MySQL client to fetch resources
+      const result = await mysqlClient.getResources();
+      
+      if (result.error) throw new Error(result.error);
 
-      // Apply filters if provided
-      if (programId) {
-        query = query.eq('program_id', programId);
-      }
-      if (monthNumber) {
-        query = query.eq('month_number', monthNumber);
-      }
-      if (componentId) {
-        query = query.eq('component_id', componentId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      const formattedResources: Resource[] = (data || []).map(resource => ({
+      const formattedResources: Resource[] = (result.resources || []).map(resource => ({
         id: resource.id,
         title: resource.title,
-        description: resource.description,
+        description: resource.description || '',
         type: resource.type,
         format: resource.format,
         fileUrl: resource.file_url || undefined,
-        fileSize: resource.file_size,
-        uploadDate: resource.upload_date.split('T')[0],
-        lastModified: resource.last_modified.split('T')[0],
-        uploadedBy: (resource.uploaded_by_user as any)?.name || 'Unknown',
-        downloadCount: resource.download_count,
-        category: resource.category,
+        fileSize: resource.file_size || '0 KB',
+        uploadDate: resource.created_at ? resource.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+        lastModified: resource.updated_at ? resource.updated_at.split('T')[0] : new Date().toISOString().split('T')[0],
+        uploadedBy: resource.uploaded_by_name || 'Unknown',
+        downloadCount: resource.download_count || 0,
+        category: resource.category || 'trainer-resources',
         programId: resource.program_id || undefined,
         monthNumber: resource.month_number || undefined,
         componentId: resource.component_id || undefined,
-        tags: resource.tags || [],
-        isPublic: resource.is_public,
-        version: resource.version,
-        status: resource.status
+        tags: resource.tags ? JSON.parse(resource.tags) : [],
+        isPublic: resource.is_public || false,
+        version: resource.version || '1.0',
+        status: resource.status || 'draft'
       }));
 
       setResources(formattedResources);
@@ -94,19 +74,33 @@ export function useResources(programId?: string, monthNumber?: number, component
 
   const createResource = async (resourceData: Omit<Resource, 'id' | 'uploadDate' | 'lastModified' | 'uploadedBy' | 'downloadCount'>) => {
     try {
-      // For now, we'll create without user authentication until we implement it
+      console.log('Creating resource with data:', resourceData);
+      
       const resourcePayload = {
         title: resourceData.title,
         description: resourceData.description,
         type: resourceData.type,
-        url: resourceData.fileUrl,
+        format: resourceData.format,
+        category: resourceData.category,
         file_size: resourceData.fileSize,
-        mime_type: resourceData.format,
         tags: resourceData.tags || [],
-        created_by: null // Will be set when we implement authentication
+        status: 'draft',
+        is_public: resourceData.isPublic || false,
+        version: resourceData.version || '1.0',
+        program_id: resourceData.programId || null,
+        month_number: resourceData.monthNumber || null,
+        component_id: resourceData.componentId || null
       };
 
-      await mysqlClient.createResource(resourcePayload);
+      console.log('Sending payload to backend:', resourcePayload);
+      
+      const result = await mysqlClient.createResource(resourcePayload);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      console.log('Resource created successfully:', result);
       await fetchResources();
     } catch (err) {
       console.error('Error creating resource:', err);
