@@ -9,10 +9,10 @@ router.get('/', async (req, res) => {
     const nominations = await executeQuery(`
       SELECT tn.*, 
              u.name as nominated_by_name,
-             GROUP_CONCAT(DISTINCT pe.pathway_id) as enrolled_pathways
+             GROUP_CONCAT(DISTINCT pe.pathway_id COLLATE utf8mb4_general_ci) as enrolled_pathways
       FROM teacher_nominations tn
       LEFT JOIN users u ON tn.nominated_by = u.id
-      LEFT JOIN program_enrollments pe ON tn.id = pe.teacher_nomination_id
+      LEFT JOIN program_enrollments pe ON tn.id = pe.teacher_nomination_id COLLATE utf8mb4_general_ci
       GROUP BY tn.id
       ORDER BY tn.created_at DESC
     `);
@@ -31,10 +31,10 @@ router.get('/:id', async (req, res) => {
     const nominations = await executeQuery(`
       SELECT tn.*, 
              u.name as nominated_by_name,
-             GROUP_CONCAT(DISTINCT pe.pathway_id) as enrolled_pathways
+             GROUP_CONCAT(DISTINCT pe.pathway_id COLLATE utf8mb4_general_ci) as enrolled_pathways
       FROM teacher_nominations tn
       LEFT JOIN users u ON tn.nominated_by = u.id
-      LEFT JOIN program_enrollments pe ON tn.id = pe.teacher_nomination_id
+      LEFT JOIN program_enrollments pe ON tn.id = pe.teacher_nomination_id COLLATE utf8mb4_general_ci
       WHERE tn.id = ?
       GROUP BY tn.id
     `, [id]);
@@ -59,18 +59,27 @@ router.post('/', async (req, res) => {
       availability, notes
     } = req.body;
 
+    // Check for undefined values (which MySQL2 doesn't allow)
+    if (first_name === undefined || last_name === undefined || email === undefined || position === undefined || school === undefined || years_experience === undefined) {
+      console.log('❌ Undefined values detected:', { first_name, last_name, email, position, school, years_experience });
+      return res.status(400).json({ error: 'Required fields cannot be undefined' });
+    }
+
     if (!first_name || !last_name || !email || !position || !school || !years_experience) {
       return res.status(400).json({ error: 'Required fields missing' });
     }
 
+    // Generate a UUID for the nomination
+    const nominationId = crypto.randomUUID();
+
     const result = await executeQuery(
       `INSERT INTO teacher_nominations (
-        first_name, last_name, email, phone, position, department, school,
+        id, first_name, last_name, email, phone, position, department, school,
         years_experience, qualifications, subjects, cefr_level, training_needs,
         availability, nominated_by, nomination_date, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?)`,
       [
-        first_name, last_name, email, phone, position, department, school,
+        nominationId, first_name, last_name, email, phone, position, department, school,
         years_experience, JSON.stringify(qualifications || []), 
         JSON.stringify(subjects || []), cefr_level, 
         JSON.stringify(training_needs || []), availability, 
@@ -80,7 +89,7 @@ router.post('/', async (req, res) => {
 
     const newNomination = await executeQuery(
       'SELECT * FROM teacher_nominations WHERE id = ?',
-      [result.insertId]
+      [nominationId]
     );
 
     res.status(201).json({

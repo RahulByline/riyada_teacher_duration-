@@ -1,5 +1,6 @@
 import express from 'express';
 import { executeQuery } from '../config/database.js';
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -37,9 +38,10 @@ router.put('/', async (req, res) => {
 
     if (result.affectedRows === 0) {
       // Create new settings if none exist
+      const brandingId = crypto.randomUUID();
       await executeQuery(
-        'INSERT INTO branding_settings (portal_name, logo_url, primary_color, secondary_color, accent_color) VALUES (?, ?, ?, ?, ?)',
-        [portal_name, logo_url, primary_color, secondary_color, accent_color]
+        'INSERT INTO branding_settings (id, portal_name, logo_url, primary_color, secondary_color, accent_color) VALUES (?, ?, ?, ?, ?, ?)',
+        [brandingId, portal_name, logo_url, primary_color, secondary_color, accent_color]
       );
     }
 

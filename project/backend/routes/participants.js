@@ -1,5 +1,6 @@
 import express from 'express';
 import { executeQuery } from '../config/database.js';
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -40,14 +41,17 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'User ID and pathway ID are required' });
     }
 
+    // Generate a UUID for the participant enrollment
+    const enrollmentId = crypto.randomUUID();
+
     const result = await executeQuery(
-      'INSERT INTO participants (user_id, pathway_id, cefr_level_start, cefr_level_target) VALUES (?, ?, ?, ?)',
-      [user_id, pathway_id, cefr_level_start, cefr_level_target]
+      'INSERT INTO participants (id, user_id, pathway_id, cefr_level_start, cefr_level_target) VALUES (?, ?, ?, ?, ?)',
+      [enrollmentId, user_id, pathway_id, cefr_level_start, cefr_level_target]
     );
 
     res.status(201).json({
       message: 'Participant enrolled successfully',
-      enrollment_id: result.insertId
+      enrollment_id: enrollmentId
     });
   } catch (error) {
     console.error('Enroll participant error:', error);

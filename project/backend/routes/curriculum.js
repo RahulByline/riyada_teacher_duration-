@@ -1,5 +1,6 @@
 import express from 'express';
 import { executeQuery } from '../config/database.js';
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -41,18 +42,27 @@ router.post('/grades', async (req, res) => {
   try {
     const { name, description, grade_order, color, min_score, max_score } = req.body;
 
+    // Check for undefined values (which MySQL2 doesn't allow)
+    if (name === undefined || grade_order === undefined) {
+      console.log('❌ Undefined values detected:', { name, grade_order });
+      return res.status(400).json({ error: 'Required fields cannot be undefined' });
+    }
+
     if (!name || !grade_order) {
       return res.status(400).json({ error: 'Name and grade order are required' });
     }
 
+    // Generate a UUID for the grade
+    const gradeId = crypto.randomUUID();
+
     const result = await executeQuery(
-      'INSERT INTO grades (name, description, grade_order, color, min_score, max_score) VALUES (?, ?, ?, ?, ?, ?)',
-      [name, description, grade_order, color, min_score, max_score]
+      'INSERT INTO grades (id, name, description, grade_order, color, min_score, max_score) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [gradeId, name, description, grade_order, color, min_score, max_score]
     );
 
     const newGrade = await executeQuery(
       'SELECT * FROM grades WHERE id = ?',
-      [result.insertId]
+      [gradeId]
     );
 
     res.status(201).json({

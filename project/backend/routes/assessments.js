@@ -1,5 +1,6 @@
 import express from 'express';
 import { executeQuery } from '../config/database.js';
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -25,14 +26,17 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Required fields missing' });
     }
 
+    // Generate a UUID for the assessment
+    const assessmentId = crypto.randomUUID();
+
     const result = await executeQuery(
-      'INSERT INTO assessments (participant_id, assessment_date, overall_level, skill_levels, recommendations, pathway_adjustments) VALUES (?, ?, ?, ?, ?, ?)',
-      [participant_id, assessment_date, overall_level, JSON.stringify(skill_levels), JSON.stringify(recommendations), JSON.stringify(pathway_adjustments)]
+      'INSERT INTO assessments (id, participant_id, assessment_date, overall_level, skill_levels, recommendations, pathway_adjustments) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [assessmentId, participant_id, assessment_date, overall_level, JSON.stringify(skill_levels), JSON.stringify(recommendations), JSON.stringify(pathway_adjustments)]
     );
 
     res.status(201).json({
       message: 'Assessment created successfully',
-      assessment_id: result.insertId
+      assessment_id: assessmentId
     });
   } catch (error) {
     console.error('Create assessment error:', error);

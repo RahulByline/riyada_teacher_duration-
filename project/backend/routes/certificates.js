@@ -1,5 +1,6 @@
 import express from 'express';
 import { executeQuery } from '../config/database.js';
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -25,17 +26,19 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Required fields missing' });
     }
 
+    // Generate a UUID for the certificate
+    const certificateId = crypto.randomUUID();
     const verification_code = `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const issue_date = new Date().toISOString().split('T')[0];
 
     const result = await executeQuery(
-      'INSERT INTO certificates (participant_id, participant_name, program_title, completion_date, issue_date, certificate_type, total_hours, cefr_level, grade, skills, verification_code, template) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [participant_id, participant_name, program_title, completion_date, issue_date, certificate_type, total_hours, cefr_level, grade, JSON.stringify(skills), verification_code, template]
+      'INSERT INTO certificates (id, participant_id, participant_name, program_title, completion_date, issue_date, certificate_type, total_hours, cefr_level, grade, skills, verification_code, template) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [certificateId, participant_id, participant_name, program_title, completion_date, issue_date, certificate_type, total_hours, cefr_level, grade, JSON.stringify(skills), verification_code, template]
     );
 
     res.status(201).json({
       message: 'Certificate generated successfully',
-      certificate_id: result.insertId,
+      certificate_id: certificateId,
       verification_code
     });
   } catch (error) {

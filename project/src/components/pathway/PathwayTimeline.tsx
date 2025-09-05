@@ -1,13 +1,42 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Users, Plus, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Calendar, Clock, Users, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { usePathway } from '../../contexts/PathwayContext';
-import type { LearningEvent } from '../../types/cefr';
+
+// Define timeline structure types
+interface TimelineEvent {
+  id: string;
+  title: string;
+  type: string;
+  duration: string;
+  status: string;
+}
+
+// Extended event interface with placement information
+interface EventWithPlacement {
+  id: string;
+  title: string;
+  type: string;
+  duration: number;
+  format: string;
+  month_index?: number;
+  week_index?: number;
+}
+
+interface TimelineWeek {
+  week: string;
+  events: TimelineEvent[];
+}
+
+interface TimelineMonth {
+  month: string;
+  weeks: TimelineWeek[];
+}
 
 // Generate timeline structure based on pathway duration
-const generateTimelineStructure = (duration: number) => {
-  const timeline = [];
+const generateTimelineStructure = (duration: number): TimelineMonth[] => {
+  const timeline: TimelineMonth[] = [];
   for (let month = 1; month <= duration; month++) {
-    const weeks = [];
+    const weeks: TimelineWeek[] = [];
     for (let week = 1; week <= 4; week++) {
       weeks.push({
         week: `Week ${week}`,
@@ -23,10 +52,17 @@ const generateTimelineStructure = (duration: number) => {
 };
 
 const eventTypeConfig = {
-  workshop: { color: 'blue', icon: Calendar },
-  elearning: { color: 'green', icon: Clock },
-  assessment: { color: 'purple', icon: Users },
-  assignment: { color: 'orange', icon: Clock },
+  workshop: { color: 'blue', icon: Calendar, label: 'Workshop' },
+  elearning: { color: 'green', icon: Clock, label: 'eLearning' },
+  assessment: { color: 'purple', icon: Users, label: 'Assessment' },
+  assignment: { color: 'orange', icon: Clock, label: 'Assignment' },
+  group: { color: 'indigo', icon: Users, label: 'Group Work' },
+  checkpoint: { color: 'red', icon: Calendar, label: 'Checkpoint' },
+};
+
+// Function to get event type display name
+const getEventTypeLabel = (type: string): string => {
+  return eventTypeConfig[type as keyof typeof eventTypeConfig]?.label || type.charAt(0).toUpperCase() + type.slice(1);
 };
 
 const statusConfig = {
@@ -36,37 +72,62 @@ const statusConfig = {
 };
 
 export function PathwayTimeline() {
-  const { selectedPathway, addEvent, deleteEvent } = usePathway();
+  const { selectedPathway, addEvent, deleteEvent, refreshPathwayEvents } = usePathway();
   const [showAddEventModal, setShowAddEventModal] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState<{monthIndex: number, weekIndex: number} | null>(null);
+  const [timelineData, setTimelineData] = useState<TimelineMonth[]>([]);
 
-  // Generate timeline structure based on selected pathway duration
-  const timelineData = selectedPathway ? generateTimelineStructure(selectedPathway.duration) : [];
+  // Log render information
+  console.log('🎯 PathwayTimeline render:', { 
+    selectedPathway: selectedPathway?.title, 
+    eventsCount: selectedPathway?.events?.length || 0,
+    timelineDataLength: timelineData.length
+  });
 
   // Distribute events across the timeline (simple distribution for now)
   useEffect(() => {
+    console.log('🔄 Timeline useEffect triggered:', { 
+      hasPathway: !!selectedPathway, 
+      eventsCount: selectedPathway?.events?.length || 0,
+      events: selectedPathway?.events || []
+    });
+    
     if (selectedPathway && selectedPathway.events.length > 0) {
-      // This is a simple distribution - you can make it more sophisticated
-      const eventsPerWeek = Math.ceil(selectedPathway.events.length / (selectedPathway.duration * 4));
-      let eventIndex = 0;
+      // Generate timeline structure based on selected pathway duration
+      const timelineData = generateTimelineStructure(selectedPathway.duration);
       
-      timelineData.forEach((month, monthIndex) => {
-        month.weeks.forEach((week, weekIndex) => {
-          if (eventIndex < selectedPathway.events.length) {
-            const event = selectedPathway.events[eventIndex];
-            week.events.push({
-              id: event.id,
-              title: event.title,
-              type: event.type,
-              duration: `${event.duration} hours`,
-              status: event.status || 'scheduled'
-            });
-            eventIndex++;
-          }
-        });
+      // Distribute events based on their placement information from database
+      selectedPathway.events.forEach((event) => {
+        // Use placement info if available, otherwise default to Month 1, Week 1
+        const eventWithPlacement = event as EventWithPlacement;
+        const monthIndex = eventWithPlacement.month_index ? eventWithPlacement.month_index - 1 : 0; // Convert to 0-based indexing
+        const weekIndex = eventWithPlacement.week_index ? eventWithPlacement.week_index - 1 : 0;     // Convert to 0-based indexing
+        
+        if (timelineData[monthIndex] && timelineData[monthIndex].weeks[weekIndex]) {
+          timelineData[monthIndex].weeks[weekIndex].events.push({
+            id: event.id,
+            title: event.title,
+            type: event.type,
+            duration: `${event.duration} hours`,
+            status: 'scheduled'
+          });
+          console.log(`✅ Event "${event.title}" placed in Month ${monthIndex + 1}, Week ${weekIndex + 1}`);
+        } else {
+          console.log(`⚠️ Invalid placement for event "${event.title}": Month ${monthIndex + 1}, Week ${weekIndex + 1}`);
+        }
       });
+      
+      console.log('✅ Events distributed to timeline:', timelineData);
+      
+      // Update the timeline data state
+      setTimelineData(timelineData);
+    } else {
+      console.log('ℹ️ No events to distribute or no pathway selected');
+      // Generate empty timeline structure
+      const timelineData = selectedPathway ? generateTimelineStructure(selectedPathway.duration) : [];
+      setTimelineData(timelineData);
     }
-  }, [selectedPathway, timelineData]);
+  }, [selectedPathway]);
 
   const handleAddEvent = (monthIndex: number, weekIndex: number) => {
     if (!selectedPathway) {
@@ -77,23 +138,36 @@ export function PathwayTimeline() {
     setShowAddEventModal(true);
   };
 
-  const handleSaveEvent = async (eventData: any) => {
+  const handleSaveEvent = async (eventData: {
+    title: FormDataEntryValue | null;
+    type: FormDataEntryValue | null;
+    duration: FormDataEntryValue | null;
+    description: FormDataEntryValue | null;
+  }) => {
     if (!selectedPathway || !selectedWeek) return;
     
     try {
       const newEvent = {
-        title: eventData.title,
-        type: eventData.type,
+        title: String(eventData.title || ''),
+        description: String(eventData.description || ''),
+        type: (String(eventData.type || 'workshop')) as "workshop" | "elearning" | "assessment" | "assignment" | "group" | "checkpoint",
         startDate: new Date().toISOString(),
         endDate: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours later
-        duration: parseInt(eventData.duration) || 2,
-        format: 'online', // Default to online format
-        objectives: eventData.description ? [eventData.description] : [], // Convert to array
+        duration: parseInt(String(eventData.duration || '2')) || 2,
+        format: 'online' as const, // Default to online format
+        objectives: eventData.description ? [String(eventData.description)] : [], // Convert to array
         resources: [],
         dependencies: []
       };
 
-      await addEvent(selectedPathway.id, newEvent);
+      // Add placement information to the event
+      const eventWithPlacement = {
+        ...newEvent,
+        month_index: selectedWeek!.monthIndex + 1, // Convert to 1-based indexing
+        week_index: selectedWeek!.weekIndex + 1    // Convert to 1-based indexing
+      };
+      
+      await addEvent(selectedPathway.id, eventWithPlacement);
       
       setShowAddEventModal(false);
       setSelectedWeek(null);
@@ -114,6 +188,18 @@ export function PathwayTimeline() {
         console.error('Error deleting event:', error);
         alert('Failed to delete event. Check console for details.');
       }
+    }
+  };
+
+  const handleRefreshEvents = async () => {
+    if (!selectedPathway) return;
+    
+    try {
+      await refreshPathwayEvents(selectedPathway.id);
+      console.log('✅ Events refreshed successfully');
+    } catch (error) {
+      console.error('Error refreshing events:', error);
+      alert('Failed to refresh events. Check console for details.');
     }
   };
 
@@ -139,6 +225,23 @@ export function PathwayTimeline() {
             <h2 className="text-xl font-semibold text-slate-900">{selectedPathway.title} Timeline</h2>
             <p className="text-slate-600">{selectedPathway.duration} months • {selectedPathway.total_hours} hours</p>
           </div>
+          <button
+            onClick={handleRefreshEvents}
+            className="flex items-center gap-2 px-4 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            title="Refresh events from database"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span className="text-sm">Refresh Events</span>
+          </button>
+        </div>
+        
+        {/* Debug info */}
+        <div className="bg-blue-50 p-4 rounded-lg text-sm">
+          <p><strong>Debug Info:</strong></p>
+          <p>Timeline Data Length: {timelineData.length}</p>
+          <p>Month 1 Week 1 Events: {timelineData[0]?.weeks[0]?.events?.length || 0}</p>
+          <p>Selected Pathway Events: {selectedPathway?.events?.length || 0}</p>
+          <p>First Event: {selectedPathway?.events[0]?.title || 'None'}</p>
         </div>
         
         {timelineData.map((month, monthIndex) => (
@@ -150,45 +253,59 @@ export function PathwayTimeline() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {month.weeks.map((week, weekIndex) => (
                 <div key={weekIndex} className="bg-slate-50 rounded-lg p-4 min-h-32">
-                  <h4 className="font-medium text-slate-700 mb-3">{week.week}</h4>
+                  <h4 className="font-medium text-slate-700 mb-3">
+                    {week.week} 
+                    <span className="text-xs text-slate-500 ml-2">({week.events.length} events)</span>
+                  </h4>
                   
                   <div className="space-y-2">
-                    {week.events.map((event) => {
-                      const config = eventTypeConfig[event.type as keyof typeof eventTypeConfig];
-                      const Icon = config.icon;
-                      
-                      return (
-                        <div
-                          key={event.id}
-                          className="bg-white p-3 rounded-lg border border-slate-200 hover:shadow-sm transition-shadow group"
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-start gap-2 flex-1">
-                              <div className={`p-1 rounded bg-${config.color}-100`}>
-                                <Icon className={`w-3 h-3 text-${config.color}-600`} />
+                    {week.events.length > 0 ? (
+                      week.events.map((event) => {
+                        const config = eventTypeConfig[event.type as keyof typeof eventTypeConfig];
+                        const Icon = config.icon;
+                        
+                        return (
+                          <div
+                            key={event.id}
+                            className="bg-white p-3 rounded-lg border border-slate-200 hover:shadow-sm transition-shadow group"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex items-start gap-2 flex-1">
+                                <div className={`p-1 rounded bg-${config.color}-100`}>
+                                  <Icon className={`w-3 h-3 text-${config.color}-600`} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h5 className="text-xs font-medium text-slate-900 leading-tight">
+                                    {event.title}
+                                  </h5>
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-${config.color}-100 text-${config.color}-700`}>
+                                      {getEventTypeLabel(event.type)}
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
-                              <h5 className="text-xs font-medium text-slate-900 leading-tight">
-                                {event.title}
-                              </h5>
+                              <button
+                                onClick={() => handleDeleteEvent(event.id)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 p-1"
+                                title="Delete event"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
                             </div>
-                            <button
-                              onClick={() => handleDeleteEvent(event.id)}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 p-1"
-                              title="Delete event"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+                            
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-slate-600">{event.duration}</span>
+                              <span className={`text-xs px-2 py-1 rounded-full ${statusConfig[event.status as keyof typeof statusConfig]}`}>
+                                {event.status}
+                              </span>
+                            </div>
                           </div>
-                          
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-slate-600">{event.duration}</span>
-                            <span className={`text-xs px-2 py-1 rounded-full ${statusConfig[event.status as keyof typeof statusConfig]}`}>
-                              {event.status}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    ) : (
+                      <div className="text-xs text-slate-400 text-center py-2">No events</div>
+                    )}
                     
                     <button 
                       onClick={() => handleAddEvent(monthIndex, weekIndex)}
@@ -215,7 +332,8 @@ export function PathwayTimeline() {
               handleSaveEvent({
                 title: formData.get('title'),
                 type: formData.get('type'),
-                duration: formData.get('duration')
+                duration: formData.get('duration'),
+                description: formData.get('description')
               });
             }}>
               <div className="space-y-4">
@@ -237,10 +355,12 @@ export function PathwayTimeline() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Select type</option>
-                    <option value="workshop">Workshop</option>
-                    <option value="elearning">eLearning</option>
-                    <option value="assessment">Assessment</option>
-                    <option value="assignment">Assignment</option>
+                    <option value="workshop">{getEventTypeLabel('workshop')}</option>
+                    <option value="elearning">{getEventTypeLabel('elearning')}</option>
+                    <option value="assessment">{getEventTypeLabel('assessment')}</option>
+                    <option value="assignment">{getEventTypeLabel('assignment')}</option>
+                    <option value="group">{getEventTypeLabel('group')}</option>
+                    <option value="checkpoint">{getEventTypeLabel('checkpoint')}</option>
                   </select>
                 </div>
                 <div>
@@ -257,9 +377,9 @@ export function PathwayTimeline() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
-                  <textarea
+                                    <textarea
                     name="description"
-                    rows="3"
+                    rows={3}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Enter event description and objectives"
                   />

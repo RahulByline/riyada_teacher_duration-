@@ -12,8 +12,6 @@ interface Workshop {
   location: string;
   facilitatorId?: string;
   facilitatorName?: string;
-  pathwayId?: string;
-  pathwayTitle?: string;
   status: 'draft' | 'planning' | 'ready' | 'in-progress' | 'completed' | 'cancelled';
   agenda: any[];
   resources: string[];
@@ -55,8 +53,6 @@ export function useWorkshops(pathwayId?: string) {
         location: workshop.location || '',
         facilitatorId: workshop.facilitator_id || undefined,
         facilitatorName: workshop.facilitator_name || undefined,
-        pathwayId: workshop.pathway_id || undefined,
-        pathwayTitle: workshop.pathway_title || undefined,
         status: workshop.status || 'draft',
         agenda: workshop.agenda || [],
         resources: workshop.resources || [],
@@ -74,12 +70,8 @@ export function useWorkshops(pathwayId?: string) {
     }
   };
 
-  const createWorkshop = async (workshopData: Omit<Workshop, 'id' | 'actualParticipants' | 'agenda' | 'resources' | 'feedbackSummary' | 'createdBy' | 'createdAt'>) => {
+  const createWorkshop = async (workshopData: Omit<Workshop, 'id' | 'actualParticipants' | 'agenda' | 'resources' | 'feedbackSummary' | 'createdBy' | 'createdAt' | 'pathwayId' | 'pathwayTitle'>) => {
     try {
-      // For now, we'll create without user authentication until we implement it
-      // Use the first available pathway as default if none is specified
-      const defaultPathwayId = "550e8400-e29b-41d4-a716-446655440010"; // Business English Fundamentals
-      
       const workshopPayload = {
         title: workshopData.title,
         description: workshopData.description,
@@ -88,7 +80,6 @@ export function useWorkshops(pathwayId?: string) {
         max_participants: workshopData.expectedParticipants,
         location: workshopData.location,
         facilitator_id: workshopData.facilitatorId,
-        pathway_id: workshopData.pathwayId || defaultPathwayId,
         materials_required: [],
         prerequisites: []
       };
@@ -111,7 +102,6 @@ export function useWorkshops(pathwayId?: string) {
         max_participants: updates.expectedParticipants,
         location: updates.location,
         facilitator_id: updates.facilitatorId,
-        pathway_id: updates.pathwayId,
         status: updates.status,
         materials_required: updates.agenda || [],
         prerequisites: updates.resources || []

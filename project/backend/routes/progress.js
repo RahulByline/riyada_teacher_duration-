@@ -1,5 +1,6 @@
 import express from 'express';
 import { executeQuery } from '../config/database.js';
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -71,18 +72,27 @@ router.post('/', async (req, res) => {
   try {
     const { participant_id, event_id, event_type, status, score, time_spent_minutes, notes } = req.body;
 
+    // Check for undefined values (which MySQL2 doesn't allow)
+    if (participant_id === undefined || event_id === undefined || event_type === undefined) {
+      console.log('❌ Undefined values detected:', { participant_id, event_id, event_type });
+      return res.status(400).json({ error: 'Required fields cannot be undefined' });
+    }
+
     if (!participant_id || !event_id || !event_type) {
       return res.status(400).json({ error: 'Required fields missing' });
     }
 
+    // Generate a UUID for the progress record
+    const progressId = crypto.randomUUID();
+
     const result = await executeQuery(
-      'INSERT INTO progress_tracking (participant_id, event_id, event_type, status, score, time_spent_minutes, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [participant_id, event_id, event_type, status || 'not_started', score, time_spent_minutes || 0, notes]
+      'INSERT INTO progress_tracking (id, participant_id, event_id, event_type, status, score, time_spent_minutes, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [progressId, participant_id, event_id, event_type, status || 'not_started', score, time_spent_minutes || 0, notes]
     );
 
     const newProgress = await executeQuery(
       'SELECT * FROM progress_tracking WHERE id = ?',
-      [result.insertId]
+      [progressId]
     );
 
     res.status(201).json({

@@ -31,12 +31,9 @@ class MySQLClient {
     const token = this.getAuthToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
       ...options.headers,
     };
-
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
@@ -96,6 +93,17 @@ class MySQLClient {
     return this.makeRequest('/users');
   }
 
+  async getUsersByRole(role: string) {
+    return this.makeRequest(`/users/role/${role}`);
+  }
+
+  async createUser(data: any) {
+    return this.makeRequest('/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async getUser(id: string) {
     return this.makeRequest(`/users/${id}`);
   }
@@ -138,6 +146,42 @@ class MySQLClient {
 
   async deletePathway(id: string) {
     return this.makeRequest(`/pathways/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Pathway participants (teachers)
+  async getPathwayParticipants(pathwayId: string) {
+    return this.makeRequest(`/pathways/${pathwayId}/participants`);
+  }
+
+  async addPathwayParticipant(pathwayId: string, teacherId: string) {
+    return this.makeRequest(`/pathways/${pathwayId}/participants`, {
+      method: 'POST',
+      body: JSON.stringify({ teacher_id: teacherId }),
+    });
+  }
+
+  async removePathwayParticipant(pathwayId: string, participantId: string) {
+    return this.makeRequest(`/pathways/${pathwayId}/participants/${participantId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Pathway trainers
+  async getPathwayTrainers(pathwayId: string) {
+    return this.makeRequest(`/pathways/${pathwayId}/trainers`);
+  }
+
+  async addPathwayTrainer(pathwayId: string, trainerId: string, role: string = 'assistant_trainer') {
+    return this.makeRequest(`/pathways/${pathwayId}/trainers`, {
+      method: 'POST',
+      body: JSON.stringify({ trainer_id: trainerId, role }),
+    });
+  }
+
+  async removePathwayTrainer(pathwayId: string, trainerAssignmentId: string) {
+    return this.makeRequest(`/pathways/${pathwayId}/trainers/${trainerAssignmentId}`, {
       method: 'DELETE',
     });
   }

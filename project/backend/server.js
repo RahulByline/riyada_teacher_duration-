@@ -16,6 +16,7 @@ import certificateRoutes from './routes/certificates.js';
 import feedbackRoutes from './routes/feedback.js';
 import brandingRoutes from './routes/branding.js';
 import workshopRoutes from './routes/workshops.js';
+import workshopAgendaRoutes from './routes/workshopAgenda.js';
 import resourceRoutes from './routes/resources.js';
 import progressRoutes from './routes/progress.js';
 import curriculumRoutes from './routes/curriculum.js';
@@ -26,26 +27,18 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// Security middleware
-app.use(helmet());
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
-});
-app.use(limiter);
 
 // CORS configuration
 app.use(cors({
   origin: [
+    process.env.FRONTEND_URL,
+    'https://learning-pathway.bylinelms.com',
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:5175',
     'http://localhost:5176',
-    'http://localhost:3000',
-    process.env.FRONTEND_URL
+    'http://localhost:3000'    
   ].filter(Boolean),
   credentials: true
 }));
@@ -53,6 +46,9 @@ app.use(cors({
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static('uploads'));
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
@@ -84,6 +80,7 @@ app.use('/api/certificates', certificateRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/branding', brandingRoutes);
 app.use('/api/workshops', workshopRoutes);
+app.use('/api/workshop-agenda', workshopAgendaRoutes);
 app.use('/api/resources', resourceRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/curriculum', curriculumRoutes);

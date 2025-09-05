@@ -11,7 +11,7 @@ import { CEFRLevelManager } from './components/CEFRLevelManager';
 import { CertificateGenerator } from './components/CertificateGenerator';
 import { PersonalizedReports } from './components/PersonalizedReports';
 import { FeedbackSystem } from './components/FeedbackSystem';
-import { AdminTeacherManagement } from './components/AdminTeacherManagement';
+import { TeacherManagement } from './components/TeacherManagement';
 import { TrainTheTrainersProgram } from './components/TrainTheTrainersProgram';
 import { ResourceLibrary } from './components/ResourceLibrary';
 import { LearnerApp } from './components/LearnerApp';
@@ -121,7 +121,7 @@ function AppContent() {
       case 'feedback':
         return <FeedbackSystem />;
       case 'teacher-management':
-        return <AdminTeacherManagement />;
+        return <TeacherManagement />;
       case 'train-trainers':
         return <TrainTheTrainersProgram />;
       case 'resources':

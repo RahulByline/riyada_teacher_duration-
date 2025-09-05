@@ -9,6 +9,9 @@ lerna-debug.log*
 
 node_modules
 dist
+uploads/resources/*
+backend.zip
+dist.zip
 dist-ssr
 *.local
 
