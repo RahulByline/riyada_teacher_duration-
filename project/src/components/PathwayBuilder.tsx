@@ -14,9 +14,10 @@ export function PathwayBuilder() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingPathway, setDeletingPathway] = useState<any>(null);
   
-  // Teacher and trainer management
+  // Teacher, trainer, and participant management
   const [availableTeachers, setAvailableTeachers] = useState<any[]>([]);
   const [availableTrainers, setAvailableTrainers] = useState<any[]>([]);
+  const [availableParticipants, setAvailableParticipants] = useState<any[]>([]);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [selectedTrainers, setSelectedTrainers] = useState<{id: string, role: string}[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -25,20 +26,23 @@ export function PathwayBuilder() {
   const [editSelectedParticipants, setEditSelectedParticipants] = useState<string[]>([]);
   const [editSelectedTrainers, setEditSelectedTrainers] = useState<{id: string, role: string}[]>([]);
 
-  // Fetch available teachers and trainers
+  // Fetch available teachers, trainers, and participants
   const fetchAvailableUsers = async () => {
     try {
       setLoadingUsers(true);
-      const [teachersResponse, trainersResponse] = await Promise.all([
+      const [teachersResponse, trainersResponse, participantsResponse] = await Promise.all([
         mysqlClient.getUsersByRole('teacher'),
-        mysqlClient.getUsersByRole('trainer')
+        mysqlClient.getUsersByRole('trainer'),
+        mysqlClient.getUsersByRole('participant')
       ]);
       
       console.log('👥 Fetched teachers:', teachersResponse.users);
       console.log('👨‍💼 Fetched trainers:', trainersResponse.users);
+      console.log('👤 Fetched participants:', participantsResponse.users);
       
       setAvailableTeachers(teachersResponse.users || []);
       setAvailableTrainers(trainersResponse.users || []);
+      setAvailableParticipants(participantsResponse.users || []);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
@@ -276,7 +280,7 @@ export function PathwayBuilder() {
               </div>
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <Users className="w-4 h-4" />
-                {pathway.participant_count || 0} participants
+                {pathway.participant_count || 0} users
               </div>
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <Target className="w-4 h-4" />
@@ -414,37 +418,57 @@ export function PathwayBuilder() {
                   </div>
                 </div>
 
-                {/* Teacher and Trainer Assignment */}
+                {/* User Assignment */}
                 <div className="space-y-4">
-                  <h4 className="font-medium text-slate-900 border-b border-slate-200 pb-2">Assign Teachers & Trainers</h4>
+                  <h4 className="font-medium text-slate-900 border-b border-slate-200 pb-2">Assign Users to Pathway</h4>
                   
-                  {/* Participants (Teachers) */}
+                  {/* Participants (Teachers + Participants) */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Participants (Teachers) 
+                      Participants 
                       <span className="text-xs text-slate-500 ml-1">({selectedParticipants.length} selected)</span>
                     </label>
                     <div className="border border-slate-200 rounded-lg max-h-32 overflow-y-auto">
                       {loadingUsers ? (
-                        <div className="p-3 text-center text-slate-500">Loading teachers...</div>
-                      ) : availableTeachers.length === 0 ? (
-                        <div className="p-3 text-center text-slate-500">No teachers available. Create teachers first.</div>
+                        <div className="p-3 text-center text-slate-500">Loading users...</div>
+                      ) : (availableTeachers.length === 0 && availableParticipants.length === 0) ? (
+                        <div className="p-3 text-center text-slate-500">No users available. Create teachers or participants first.</div>
                       ) : (
-                        availableTeachers.map((teacher) => (
-                          <div key={teacher.id} className="flex items-center p-2 hover:bg-slate-50">
-                            <input
-                              type="checkbox"
-                              id={`teacher-${teacher.id}`}
-                              checked={selectedParticipants.includes(teacher.id)}
-                              onChange={() => toggleParticipant(teacher.id)}
-                              className="mr-3"
-                            />
-                            <label htmlFor={`teacher-${teacher.id}`} className="flex-1 cursor-pointer">
-                              <div className="font-medium text-sm">{teacher.name}</div>
-                              <div className="text-xs text-slate-500">{teacher.email}</div>
-                            </label>
-                          </div>
-                        ))
+                        <>
+                          {/* Teachers */}
+                          {availableTeachers.map((teacher) => (
+                            <div key={teacher.id} className="flex items-center p-2 hover:bg-slate-50">
+                              <input
+                                type="checkbox"
+                                id={`teacher-${teacher.id}`}
+                                checked={selectedParticipants.includes(teacher.id)}
+                                onChange={() => toggleParticipant(teacher.id)}
+                                className="mr-3"
+                              />
+                              <label htmlFor={`teacher-${teacher.id}`} className="flex-1 cursor-pointer">
+                                <div className="font-medium text-sm">{teacher.name}</div>
+                                <div className="text-xs text-slate-500">{teacher.email} • Teacher</div>
+                              </label>
+                            </div>
+                          ))}
+                          
+                          {/* Participants */}
+                          {availableParticipants.map((participant) => (
+                            <div key={participant.id} className="flex items-center p-2 hover:bg-slate-50">
+                              <input
+                                type="checkbox"
+                                id={`participant-${participant.id}`}
+                                checked={selectedParticipants.includes(participant.id)}
+                                onChange={() => toggleParticipant(participant.id)}
+                                className="mr-3"
+                              />
+                              <label htmlFor={`participant-${participant.id}`} className="flex-1 cursor-pointer">
+                                <div className="font-medium text-sm">{participant.name}</div>
+                                <div className="text-xs text-slate-500">{participant.email} • Participant</div>
+                              </label>
+                            </div>
+                          ))}
+                        </>
                       )}
                     </div>
                   </div>
@@ -638,37 +662,57 @@ export function PathwayBuilder() {
                   </div>
                 </div>
 
-                {/* Teacher and Trainer Assignment */}
+                {/* User Assignment */}
                 <div className="space-y-4">
-                  <h4 className="font-medium text-slate-900 border-b border-slate-200 pb-2">Assign Teachers & Trainers</h4>
+                  <h4 className="font-medium text-slate-900 border-b border-slate-200 pb-2">Assign Users to Pathway</h4>
                   
-                  {/* Participants (Teachers) */}
+                  {/* Participants (Teachers + Participants) */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Participants (Teachers) 
+                      Participants 
                       <span className="text-xs text-slate-500 ml-1">({editSelectedParticipants.length} selected)</span>
                     </label>
                     <div className="border border-slate-200 rounded-lg max-h-32 overflow-y-auto">
                       {loadingUsers ? (
-                        <div className="p-3 text-center text-slate-500">Loading teachers...</div>
-                      ) : availableTeachers.length === 0 ? (
-                        <div className="p-3 text-center text-slate-500">No teachers available. Create teachers first.</div>
+                        <div className="p-3 text-center text-slate-500">Loading users...</div>
+                      ) : (availableTeachers.length === 0 && availableParticipants.length === 0) ? (
+                        <div className="p-3 text-center text-slate-500">No users available. Create teachers or participants first.</div>
                       ) : (
-                        availableTeachers.map((teacher) => (
-                          <div key={teacher.id} className="flex items-center p-2 hover:bg-slate-50">
-                            <input
-                              type="checkbox"
-                              id={`edit-teacher-${teacher.id}`}
-                              checked={editSelectedParticipants.includes(teacher.id)}
-                              onChange={() => toggleEditParticipant(teacher.id)}
-                              className="mr-3"
-                            />
-                            <label htmlFor={`edit-teacher-${teacher.id}`} className="flex-1 cursor-pointer">
-                              <div className="font-medium text-sm">{teacher.name}</div>
-                              <div className="text-xs text-slate-500">{teacher.email}</div>
-                            </label>
-                          </div>
-                        ))
+                        <>
+                          {/* Teachers */}
+                          {availableTeachers.map((teacher) => (
+                            <div key={teacher.id} className="flex items-center p-2 hover:bg-slate-50">
+                              <input
+                                type="checkbox"
+                                id={`edit-teacher-${teacher.id}`}
+                                checked={editSelectedParticipants.includes(teacher.id)}
+                                onChange={() => toggleEditParticipant(teacher.id)}
+                                className="mr-3"
+                              />
+                              <label htmlFor={`edit-teacher-${teacher.id}`} className="flex-1 cursor-pointer">
+                                <div className="font-medium text-sm">{teacher.name}</div>
+                                <div className="text-xs text-slate-500">{teacher.email} • Teacher</div>
+                              </label>
+                            </div>
+                          ))}
+                          
+                          {/* Participants */}
+                          {availableParticipants.map((participant) => (
+                            <div key={participant.id} className="flex items-center p-2 hover:bg-slate-50">
+                              <input
+                                type="checkbox"
+                                id={`edit-participant-${participant.id}`}
+                                checked={editSelectedParticipants.includes(participant.id)}
+                                onChange={() => toggleEditParticipant(participant.id)}
+                                className="mr-3"
+                              />
+                              <label htmlFor={`edit-participant-${participant.id}`} className="flex-1 cursor-pointer">
+                                <div className="font-medium text-sm">{participant.name}</div>
+                                <div className="text-xs text-slate-500">{participant.email} • Participant</div>
+                              </label>
+                            </div>
+                          ))}
+                        </>
                       )}
                     </div>
                   </div>

@@ -340,4 +340,28 @@ router.delete('/:id/trainers/:trainer_assignment_id', async (req, res) => {
   }
 });
 
+// Get pathways by participant ID
+router.get('/participant/:participantId', async (req, res) => {
+  try {
+    const { participantId } = req.params;
+    
+    const pathways = await executeQuery(`
+      SELECT DISTINCT p.*, 
+             COUNT(DISTINCT pp.teacher_id) as participant_count,
+             COUNT(DISTINCT pt.trainer_id) as trainer_count
+      FROM pathways p
+      LEFT JOIN pathway_participants pp ON p.id = pp.pathway_id
+      LEFT JOIN pathway_trainers pt ON p.id = pt.pathway_id
+      WHERE pp.teacher_id = ?
+      GROUP BY p.id
+      ORDER BY p.created_at DESC
+    `, [participantId]);
+    
+    res.json({ pathways });
+  } catch (error) {
+    console.error('Get pathways by participant error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

@@ -15,13 +15,15 @@ import { LearnerDashboard } from './learner/LearnerDashboard';
 import { LearnerAssessment } from './learner/LearnerAssessment';
 import { LearnerFeedback } from './learner/LearnerFeedback';
 import { LearnerCertificates } from './learner/LearnerCertificates';
+import { ParticipantPathwayView } from './participant/ParticipantPathwayView';
 import { useUser } from '../contexts/UserContext';
 import { useBranding } from '../contexts/BrandingContext';
 
-type LearnerView = 'dashboard' | 'assessment' | 'feedback' | 'certificates';
+type LearnerView = 'dashboard' | 'pathways' | 'assessment' | 'feedback' | 'certificates';
 
 const learnerMenuItems = [
   { id: 'dashboard', label: 'My Learning', icon: Home },
+  { id: 'pathways', label: 'My Pathways', icon: BookOpen },
   { id: 'assessment', label: 'Assessments', icon: ClipboardCheck },
   { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   { id: 'certificates', label: 'Certificates', icon: Award },
@@ -47,6 +49,8 @@ export function LearnerApp() {
     switch (currentView) {
       case 'dashboard':
         return <LearnerDashboard />;
+      case 'pathways':
+        return <ParticipantPathwayView />;
       case 'assessment':
         return <LearnerAssessment />;
       case 'feedback':

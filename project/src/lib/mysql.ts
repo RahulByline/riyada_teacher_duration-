@@ -186,6 +186,10 @@ class MySQLClient {
     });
   }
 
+  async getPathwaysByParticipant(participantId: string) {
+    return this.makeRequest(`/pathways/participant/${participantId}`);
+  }
+
   // Learning events
   async getLearningEvents() {
     return this.makeRequest('/learning-events');
@@ -316,6 +320,10 @@ class MySQLClient {
 
   async getWorkshop(id: string) {
     return this.makeRequest(`/workshops/${id}`);
+  }
+
+  async getWorkshopAgenda(workshopId: string) {
+    return this.makeRequest(`/workshops/${workshopId}/agenda`);
   }
 
   async createWorkshop(data: any) {
