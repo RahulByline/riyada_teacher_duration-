@@ -8,7 +8,8 @@ import {
   CheckCircle,
   Download,
   MapPin,
-  Award
+  Award,
+  ArrowLeft
 } from 'lucide-react';
 import { mysqlClient } from '../../lib/mysql';
 import { useUser } from '../../contexts/UserContext';
@@ -80,10 +81,12 @@ export function ParticipantPathwayView() {
   const [assignedPathways, setAssignedPathways] = useState<Pathway[]>([]);
   const [pathwayWorkshops, setPathwayWorkshops] = useState<Workshop[]>([]);
   const [pathwayEvents, setPathwayEvents] = useState<LearningEvent[]>([]);
+  const [pathwayResources, setPathwayResources] = useState<any[]>([]);
   const [selectedPathway, setSelectedPathway] = useState<Pathway | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'workshops' | 'timeline' | 'resources'>('overview');
   const [selectedWorkshop, setSelectedWorkshop] = useState<Workshop | null>(null);
+  const [showPathwaySelection, setShowPathwaySelection] = useState(true);
 
   // Fetch participant's assigned pathways
   const fetchAssignedPathways = async () => {
@@ -118,10 +121,28 @@ export function ParticipantPathwayView() {
       console.log('📚 Pathway workshops response:', response);
       
       if (response.workshops) {
-        setPathwayWorkshops(response.workshops);
+        // Map the backend data to match the frontend interface
+        const mappedWorkshops = response.workshops.map((workshop: any) => ({
+          id: workshop.id,
+          title: workshop.title,
+          description: workshop.description || '',
+          date: workshop.workshop_date || workshop.date, // Map workshop_date to date
+          duration: workshop.duration_hours || workshop.duration,
+          location: workshop.location || '',
+          status: workshop.status || 'draft',
+          pathway_id: workshop.pathway_id,
+          pathway_title: workshop.pathway_title,
+          pathwayParticipantCount: workshop.pathway_participant_count || 0
+        }));
+        
+        setPathwayWorkshops(mappedWorkshops);
+      } else {
+        console.log('📚 No workshops found for pathway:', pathwayId);
+        setPathwayWorkshops([]);
       }
     } catch (error) {
       console.error('❌ Error fetching pathway workshops:', error);
+      setPathwayWorkshops([]);
     }
   };
 
@@ -140,14 +161,38 @@ export function ParticipantPathwayView() {
     }
   };
 
+  // Fetch resources for selected pathway
+  const fetchPathwayResources = async (pathwayId: string) => {
+    try {
+      console.log('🔍 Fetching resources for pathway:', pathwayId);
+      const response = await mysqlClient.getResourcesByPathway(pathwayId);
+      console.log('📁 Pathway resources response:', response);
+      
+      if (response.resources) {
+        setPathwayResources(response.resources);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching pathway resources:', error);
+    }
+  };
+
   useEffect(() => {
     fetchAssignedPathways();
   }, [user?.id]);
+
+  // Auto-select first pathway if only one is available
+  useEffect(() => {
+    if (assignedPathways.length === 1 && !selectedPathway) {
+      setSelectedPathway(assignedPathways[0]);
+      setShowPathwaySelection(false);
+    }
+  }, [assignedPathways, selectedPathway]);
 
   useEffect(() => {
     if (selectedPathway) {
       fetchPathwayWorkshops(selectedPathway.id);
       fetchPathwayEvents(selectedPathway.id);
+      fetchPathwayResources(selectedPathway.id);
     }
   }, [selectedPathway]);
 
@@ -289,20 +334,88 @@ export function ParticipantPathwayView() {
           })()}
         </div>
       )}
+
+      {/* First Month Events */}
+      {pathwayEvents.length > 0 && (
+        <div className="bg-white rounded-xl p-6 border border-slate-200">
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Month 1 Events</h3>
+          {(() => {
+            // Filter events for the first month (month_index = 1)
+            const firstMonthEvents = pathwayEvents.filter(event => event.month_index === 1);
+            
+            if (firstMonthEvents.length === 0) {
+              return (
+                <div className="text-center py-8 text-slate-500">
+                  <Calendar className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                  <p>No events scheduled for Month 1</p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-3">
+                {firstMonthEvents.map((event) => {
+                  const config = eventTypeConfig[event.type as keyof typeof eventTypeConfig];
+                  const Icon = config.icon;
+                  
+                  return (
+                    <div key={event.id} className="bg-white p-4 rounded-lg border border-slate-200">
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded bg-${config.color}-100`}>
+                          <Icon className={`w-4 h-4 text-${config.color}-600`} />
+                        </div>
+                        <div className="flex-1">
+                          <h6 className="font-medium text-slate-900">{event.title}</h6>
+                          <p className="text-sm text-slate-600">{event.description}</p>
+                          <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
+                            <span>{new Date(event.start_date).toLocaleDateString()}</span>
+                            <span>{event.duration} hours</span>
+                            <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-${config.color}-100 text-${config.color}-700`}>
+                              {getEventTypeLabel(event.type)}
+                            </span>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusConfig[event.status as keyof typeof statusConfig]}`}>
+                              {event.status}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 
   const renderWorkshops = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-xl p-6 border border-slate-200">
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Workshop Schedule</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-slate-900">Workshop Schedule</h3>
+          {selectedPathway && (
+            <span className="text-sm text-slate-500">
+              For: {selectedPathway.title}
+            </span>
+          )}
+        </div>
         {pathwayWorkshops.length === 0 ? (
           <div className="text-center py-8 text-slate-500">
             <Calendar className="w-12 h-12 mx-auto mb-4 text-slate-300" />
             <p>No workshops scheduled for this pathway</p>
+            {selectedPathway && (
+              <p className="text-xs text-slate-400 mt-2">
+                Pathway ID: {selectedPathway.id}
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
+            <div className="text-xs text-slate-400 mb-2">
+              Showing {pathwayWorkshops.length} workshop(s) for pathway: {selectedPathway?.id}
+            </div>
             {pathwayWorkshops.map((workshop) => (
               <div key={workshop.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
                 <div className="flex items-center gap-4">
@@ -320,7 +433,7 @@ export function ParticipantPathwayView() {
                   <div>
                     <h4 className="font-semibold text-slate-900">{workshop.title}</h4>
                     <p className="text-sm text-slate-600">
-                      {new Date(workshop.date).toLocaleDateString()} • {workshop.duration}
+                      {new Date(workshop.date).toLocaleDateString()} • {workshop.duration}  {(parseInt(workshop.duration) > 1) ? "hours": "hour"}
                     </p>
                     {workshop.location && (
                       <p className="text-sm text-slate-500 flex items-center gap-1 mt-1">
@@ -534,14 +647,144 @@ export function ParticipantPathwayView() {
     );
   };
 
+  const renderPathwaySelection = () => (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold text-slate-900 mb-2">My Learning Pathways</h2>
+        <p className="text-slate-600">Select a pathway to view your progress and learning materials</p>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {assignedPathways.map((pathway) => (
+          <div
+            key={pathway.id}
+            onClick={() => {
+              setSelectedPathway(pathway);
+              setShowPathwaySelection(false);
+            }}
+            className="bg-white rounded-xl p-6 border border-slate-200 hover:shadow-lg transition-all cursor-pointer group"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <h3 className="font-semibold text-slate-900 mb-2 group-hover:text-blue-600 transition-colors">
+                  {pathway.title}
+                </h3>
+                <p className="text-sm text-slate-600 mb-4 line-clamp-2">
+                  {pathway.description}
+                </p>
+              </div>
+              <span className={`text-xs px-2 py-1 rounded-full ${
+                pathway.status === 'active' ? 'bg-green-100 text-green-700' :
+                pathway.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                'bg-slate-100 text-slate-700'
+              }`}>
+                {pathway.status}
+              </span>
+            </div>
+            
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Clock className="w-4 h-4" />
+                <span>{pathway.duration} months</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Target className="w-4 h-4" />
+                <span>{pathway.total_hours} hours</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Users className="w-4 h-4" />
+                <span>{pathway.participant_count || 0} participants</span>
+              </div>
+              {pathway.cefr_level && (
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <Award className="w-4 h-4" />
+                  <span>CEFR {pathway.cefr_level}</span>
+                </div>
+              )}
+            </div>
+            
+            <div className="pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Progress</span>
+                <span className="font-medium text-slate-900">68%</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-2 mt-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: '68%' }}
+                ></div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   const renderResources = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-xl p-6 border border-slate-200">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">Pathway Resources</h3>
-        <div className="text-center py-8 text-slate-500">
-          <Download className="w-12 h-12 mx-auto mb-4 text-slate-300" />
-          <p>Resources will be available here once linked to the pathway</p>
-        </div>
+        {pathwayResources.length === 0 ? (
+          <div className="text-center py-8 text-slate-500">
+            <Download className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+            <p>No resources available for this pathway yet</p>
+            <p className="text-sm text-slate-400 mt-2">
+              Resources will appear here once they are linked to the pathway or its workshops
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pathwayResources.map((resource) => (
+              <div key={resource.id} className="border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Download className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-slate-900 truncate">{resource.title}</h4>
+                    {resource.description && (
+                      <p className="text-sm text-slate-600 mt-1 line-clamp-2">{resource.description}</p>
+                    )}
+                    <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
+                      <span className="capitalize">{resource.type}</span>
+                      {resource.file_size && (
+                        <>
+                          <span>•</span>
+                          <span>{resource.file_size}</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between mt-3">
+                      <span className="text-xs text-slate-500">
+                        {resource.created_by_name || 'Unknown'}
+                      </span>
+                      <button 
+                        className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors flex items-center gap-1"
+                        onClick={() => {
+                          if (resource.id) {
+                            // Create a proper download link using the backend endpoint
+                            const downloadUrl = `${import.meta.env.VITE_API_URL}/resources/${resource.id}/download`;
+                            const link = document.createElement('a');
+                            link.href = downloadUrl;
+                            link.download = `${resource.title}.${resource.format}`;
+                            link.target = '_blank';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }
+                        }}
+                      >
+                        <Download className="w-3 h-3" />
+                        Download
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -582,35 +825,46 @@ export function ParticipantPathwayView() {
     );
   }
 
+  // Show pathway selection if no pathway is selected or if user wants to switch
+  if (showPathwaySelection) {
+    return renderPathwaySelection();
+  }
+
   return (
     <div className="space-y-6">
-      {/* Pathway Selector */}
-      {assignedPathways.length > 1 && (
-        <div className="bg-white rounded-xl p-6 border border-slate-200">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Select Pathway</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {assignedPathways.map((pathway) => (
-              <button
-                key={pathway.id}
-                onClick={() => setSelectedPathway(pathway)}
-                className={`p-4 rounded-lg border-2 text-left transition-all ${
-                  selectedPathway?.id === pathway.id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <h4 className="font-semibold text-slate-900 mb-2">{pathway.title}</h4>
-                <p className="text-sm text-slate-600 mb-3">{pathway.description}</p>
-                <div className="flex items-center gap-4 text-xs text-slate-500">
-                  <span>{pathway.duration} months</span>
-                  <span>{pathway.total_hours} hours</span>
-                  <span className="capitalize">{pathway.status}</span>
-                </div>
-              </button>
-            ))}
+      {/* Back to Pathway Selection */}
+      <div className="flex items-center justify-between">
+        <button 
+          onClick={() => setShowPathwaySelection(true)}
+          className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to My Pathways
+        </button>
+        
+        {/* Pathway Switcher */}
+        {assignedPathways.length > 1 && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-600">Switch to:</span>
+            <select
+              value={selectedPathway?.id || ''}
+              onChange={(e) => {
+                const pathway = assignedPathways.find(p => p.id === e.target.value);
+                if (pathway) {
+                  setSelectedPathway(pathway);
+                }
+              }}
+              className="px-3 py-1 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              {assignedPathways.map((pathway) => (
+                <option key={pathway.id} value={pathway.id}>
+                  {pathway.title}
+                </option>
+              ))}
+            </select>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Navigation Tabs */}
       <div className="border-b border-slate-200">

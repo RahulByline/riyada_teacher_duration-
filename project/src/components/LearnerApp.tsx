@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   BookOpen, 
   User, 
   Bell, 
   Menu,
   Home,
-  TrendingUp,
   ClipboardCheck,
   MessageSquare,
   Award,
@@ -97,8 +96,8 @@ export function LearnerApp() {
             
             <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-slate-900">{user.name}</p>
-                <p className="text-xs text-slate-500 capitalize">{user.role}</p>
+                <p className="text-sm font-medium text-slate-900">{user?.name || 'User'}</p>
+                <p className="text-xs text-slate-500 capitalize">{user?.role || 'participant'}</p>
               </div>
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <User className="w-4 h-4 text-white" />
@@ -127,7 +126,7 @@ export function LearnerApp() {
             {/* Progress Overview */}
             <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
               <h3 className="font-semibold text-blue-900 mb-2">Current Progress</h3>
-              <p className="text-sm text-blue-700 mb-2">{user.program || 'English Teaching Mastery Program'}</p>
+              <p className="text-sm text-blue-700 mb-2">English Teaching Mastery Program</p>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-blue-700">Overall Completion</span>
                 <span className="text-sm font-bold text-blue-900">68%</span>

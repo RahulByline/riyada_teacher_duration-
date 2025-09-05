@@ -57,7 +57,7 @@ router.get('/pathway/:pathwayId', async (req, res) => {
 // Create new event
 router.post('/', async (req, res) => {
   try {
-    const { pathway_id, title, description, type, start_date, end_date, duration, format, objectives, resources, dependencies, month_index, week_index } = req.body;
+    const { pathway_id, title, description, type, start_date, end_date, duration, format, objectives, resources, dependencies, month_index, week_index, location } = req.body;
 
     console.log('📥 Received event data:', { pathway_id, title, description, type, start_date, end_date, duration, format, objectives, resources, dependencies });
 
@@ -152,6 +152,45 @@ router.post('/', async (req, res) => {
           newEvent[0] = anyEvent[0];
           console.log('✅ Using any recent event with ID:', newEvent[0].id);
         }
+      }
+    }
+
+    // If this is a workshop event, also create a workshop record
+    if (type === 'workshop') {
+      try {
+        console.log('🏗️ Creating workshop for workshop event...');
+        
+        // Generate a UUID for the workshop
+        const workshopId = crypto.randomUUID();
+        
+        // Create workshop record
+        const workshopData = {
+          id: workshopId,
+          title: title,
+          description: description || '',
+          workshop_date: start_date,
+          duration_hours: duration,
+          location: location || 'TBD',
+          status: 'draft',
+          pathway_id: pathway_id,
+          facilitator_id: null, // Can be assigned later
+          max_participants: 20, // Default value
+          materials_required: JSON.stringify([]),
+          prerequisites: JSON.stringify([])
+        };
+        
+        console.log('📤 Workshop data:', workshopData);
+        
+        const workshopResult = await executeQuery(
+          'INSERT INTO workshops (id, title, description, workshop_date, duration_hours, location, status, pathway_id, facilitator_id, max_participants, materials_required, prerequisites) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [workshopData.id, workshopData.title, workshopData.description, workshopData.workshop_date, workshopData.duration_hours, workshopData.location, workshopData.status, workshopData.pathway_id, workshopData.facilitator_id, workshopData.max_participants, workshopData.materials_required, workshopData.prerequisites]
+        );
+        
+        console.log('✅ Workshop created successfully:', workshopResult);
+      } catch (workshopError) {
+        console.error('❌ Error creating workshop:', workshopError);
+        // Don't fail the entire request if workshop creation fails
+        // The learning event was already created successfully
       }
     }
 

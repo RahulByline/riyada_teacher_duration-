@@ -52,6 +52,7 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
   const [pathways, setPathways] = useState<Pathway[]>([]);
   const [selectedPathway, setSelectedPathway] = useState<Pathway | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Fetch pathways from backend on component mount
   useEffect(() => {
@@ -122,7 +123,17 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createPathway = async (pathway: Omit<Pathway, 'id' | 'events' | 'participants'> & { participants?: string[], trainers?: {id: string, role: string}[] }) => {
+    const timestamp = new Date().toISOString();
+    console.log(`🔍 PathwayContext: createPathway called at ${timestamp}`);
+    
+    // Prevent duplicate API calls (React StrictMode in development)
+    if (isCreating) {
+      console.log('⚠️ PathwayContext: Creation already in progress, skipping duplicate call');
+      return;
+    }
+
     try {
+      setIsCreating(true);
       console.log('🔍 PathwayContext: Creating pathway with data:', pathway);
       setLoading(true);
       
@@ -158,6 +169,7 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
       throw err;
     } finally {
       setLoading(false);
+      setIsCreating(false);
     }
   };
 
@@ -233,7 +245,9 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
         resources: event.resources,
         dependencies: event.dependencies,
         month_index: (event as any).month_index || 1,
-        week_index: (event as any).week_index || 1
+        week_index: (event as any).week_index || 1,
+        // Add location for workshop events
+        ...(event.type === 'workshop' && { location: (event as any).location || 'TBD' })
       };
 
       console.log('📤 Sending to backend:', backendEventData);
@@ -299,37 +313,8 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
         
         console.log('✅ Local state updated');
         
-        // Auto-create workshop if event type is 'workshop'
-        if (event.type === 'workshop') {
-          try {
-            console.log('🎯 Auto-creating workshop for event:', newEvent.title);
-            
-            // Create default workshop data based on the learning event
-            const workshopData = {
-              title: newEvent.title,
-              description: newEvent.description || `Workshop: ${newEvent.title}`,
-              facilitator_id: null, // Will be assigned later
-              max_participants: 20, // Default value
-              workshop_date: newEvent.startDate,
-              duration_hours: newEvent.duration || 2,
-              location: newEvent.format === 'online' ? 'Online' : 'TBD',
-              pathway_id: pathwayId,
-              materials_required: newEvent.resources || [],
-              prerequisites: newEvent.dependencies || []
-            };
-            
-            console.log('📤 Creating workshop with data:', workshopData);
-            
-            // Create the workshop
-            const workshopResponse = await mysqlClient.createWorkshop(workshopData);
-            console.log('✅ Workshop created successfully:', workshopResponse);
-            
-          } catch (workshopError) {
-            console.error('⚠️ Failed to auto-create workshop:', workshopError);
-            // Don't throw error - learning event was created successfully
-            // Just log the workshop creation failure
-          }
-        }
+        // Note: Workshop creation is handled automatically by the backend
+        // when creating a learning event of type 'workshop'
       } else {
         console.error('❌ No event data in response:', response);
         throw new Error('No event data received from backend');

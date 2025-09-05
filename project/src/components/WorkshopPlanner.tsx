@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Clock, Users, MapPin, Plus, Calendar, List } from 'lucide-react';
 
 import { ResourceManager } from './workshop/ResourceManager';
@@ -8,7 +8,7 @@ import { useWorkshops } from '../hooks/useWorkshops';
 
 export function WorkshopPlanner() {
   const { workshops, loading, createWorkshop } = useWorkshops();
-  const [selectedWorkshop, setSelectedWorkshop] = useState(null);
+  const [selectedWorkshop, setSelectedWorkshop] = useState<any>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeView, setActiveView] = useState<'overview' | 'agenda' | 'resources'>('overview');
 
@@ -23,7 +23,6 @@ export function WorkshopPlanner() {
         date: workshopData.date,
         duration: workshopData.duration,
         expectedParticipants: parseInt(workshopData.participants) || 0,
-        actualParticipants: 0,
         location: workshopData.location,
         status: 'draft'
       });
@@ -274,15 +273,6 @@ export function WorkshopPlanner() {
                     name="duration"
                     type="text"
                     placeholder="e.g., 6 hours"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Expected Participants</label>
-                  <input
-                    name="participants"
-                    type="number"
-                    min="1"
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>

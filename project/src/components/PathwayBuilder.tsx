@@ -21,6 +21,8 @@ export function PathwayBuilder() {
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [selectedTrainers, setSelectedTrainers] = useState<{id: string, role: string}[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [isCreatingPathway, setIsCreatingPathway] = useState(false);
+  const [submissionId, setSubmissionId] = useState(0);
   
   // Edit modal state
   const [editSelectedParticipants, setEditSelectedParticipants] = useState<string[]>([]);
@@ -202,8 +204,19 @@ export function PathwayBuilder() {
   };
 
   const handleSavePathway = async (pathwayData: any) => {
+    console.log(`🎯 handleSavePathway called #${submissionId} with data:`, pathwayData);
+    console.log('🎯 Current isCreatingPathway state:', isCreatingPathway);
+    
+    // Prevent duplicate submissions (React StrictMode in development)
+    if (isCreatingPathway) {
+      console.log('⚠️ Pathway creation already in progress, skipping duplicate call');
+      return;
+    }
+
     try {
-      console.log('🔍 Creating pathway with data:', pathwayData);
+      setIsCreatingPathway(true);
+      const timestamp = new Date().toISOString();
+      console.log(`🔍 Creating pathway #${submissionId} at ${timestamp} with data:`, pathwayData);
       console.log('👥 Selected participants:', pathwayData.participants);
       console.log('👨‍💼 Selected trainers:', pathwayData.trainers);
       
@@ -230,6 +243,8 @@ export function PathwayBuilder() {
     } catch (error) {
       console.error('❌ Error creating pathway:', error);
       alert('Failed to create pathway. Check console for details.');
+    } finally {
+      setIsCreatingPathway(false);
     }
   };
   return (
@@ -336,10 +351,20 @@ export function PathwayBuilder() {
             <h3 className="text-lg font-semibold text-slate-900 mb-4">Create New Pathway</h3>
             <form onSubmit={(e) => {
               e.preventDefault();
+              const currentSubmissionId = submissionId + 1;
+              setSubmissionId(currentSubmissionId);
+              
+              console.log(`🚀 FORM SUBMIT EVENT TRIGGERED #${currentSubmissionId}`);
               const formData = new FormData(e.target as HTMLFormElement);
-              console.log('📝 Form submission - selectedParticipants:', selectedParticipants);
-              console.log('📝 Form submission - selectedTrainers:', selectedTrainers);
-              handleSavePathway({
+              console.log(`📝 Form submission #${currentSubmissionId} - selectedParticipants:`, selectedParticipants);
+              console.log(`📝 Form submission #${currentSubmissionId} - selectedTrainers:`, selectedTrainers);
+              console.log(`📝 Form data #${currentSubmissionId} - title:`, formData.get('title'));
+              console.log(`📝 Form data #${currentSubmissionId} - description:`, formData.get('description'));
+              console.log(`📝 Form data #${currentSubmissionId} - duration:`, formData.get('duration'));
+              console.log(`📝 Form data #${currentSubmissionId} - totalHours:`, formData.get('totalHours'));
+              console.log(`📝 Form data #${currentSubmissionId} - cefrLevel:`, formData.get('cefrLevel'));
+              
+              const pathwayData = {
                 title: formData.get('title'),
                 description: formData.get('description'),
                 duration: parseInt(formData.get('duration') as string),
@@ -347,7 +372,10 @@ export function PathwayBuilder() {
                 cefrLevel: formData.get('cefrLevel'),
                 participants: selectedParticipants,
                 trainers: selectedTrainers
-              });
+              };
+              
+              console.log(`📤 Calling handleSavePathway #${currentSubmissionId} with data:`, pathwayData);
+              handleSavePathway(pathwayData);
             }}>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Basic Information */}
@@ -534,9 +562,14 @@ export function PathwayBuilder() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  disabled={isCreatingPathway}
+                  className={`px-4 py-2 rounded-lg transition-colors ${
+                    isCreatingPathway 
+                      ? 'bg-blue-400 text-white cursor-not-allowed' 
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
                 >
-                  Create Pathway
+                  {isCreatingPathway ? 'Creating...' : 'Create Pathway'}
                 </button>
               </div>
             </form>

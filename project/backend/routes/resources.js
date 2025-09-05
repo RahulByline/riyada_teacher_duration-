@@ -406,6 +406,38 @@ router.get('/learning-event/:eventId', async (req, res) => {
   }
 });
 
+// Get resources by pathway
+router.get('/pathway/:pathwayId', async (req, res) => {
+  try {
+    const { pathwayId } = req.params;
+    const resources = await executeQuery(`
+      SELECT r.*, u.name as created_by_name 
+      FROM resources r 
+      LEFT JOIN users u ON r.created_by = u.id 
+      WHERE r.program_id = ? OR r.id IN (
+        SELECT resource_id FROM resource_workshops rw 
+        JOIN workshops w ON rw.workshop_id = w.id 
+        WHERE w.pathway_id = ?
+      ) OR r.id IN (
+        SELECT resource_id FROM resource_learning_events rle 
+        JOIN learning_events le ON rle.learning_event_id = le.id 
+        WHERE le.pathway_id = ?
+      )
+      ORDER BY r.created_at DESC
+    `, [pathwayId, pathwayId, pathwayId]);
+    
+    const formattedResources = resources.map(resource => ({
+      ...resource,
+      tags: resource.tags || []
+    }));
+    
+    res.json({ resources: formattedResources });
+  } catch (error) {
+    console.error('Get resources by pathway error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Link resource to workshop
 router.post('/link/workshop', async (req, res) => {
   try {

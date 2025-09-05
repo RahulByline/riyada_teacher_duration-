@@ -131,6 +131,8 @@ class MySQLClient {
   }
 
   async createPathway(data: any) {
+    const timestamp = new Date().toISOString();
+    console.log(`🌐 MySQL Client: createPathway API call at ${timestamp}`, data);
     return this.makeRequest('/pathways', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -390,6 +392,10 @@ class MySQLClient {
 
   async getResourcesByLearningEvent(eventId: string) {
     return this.makeRequest(`/resources/learning-event/${eventId}`);
+  }
+
+  async getResourcesByPathway(pathwayId: string) {
+    return this.makeRequest(`/resources/pathway/${pathwayId}`);
   }
 
   async linkResourceToWorkshop(resourceId: string, workshopId: string, resourceType: string = 'optional', displayOrder: number = 0) {

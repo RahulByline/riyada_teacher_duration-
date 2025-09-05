@@ -75,6 +75,7 @@ export function PathwayTimeline() {
   const { selectedPathway, addEvent, deleteEvent, refreshPathwayEvents } = usePathway();
   const [showAddEventModal, setShowAddEventModal] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState<{monthIndex: number, weekIndex: number} | null>(null);
+  const [selectedEventType, setSelectedEventType] = useState<string>('');
   const [timelineData, setTimelineData] = useState<TimelineMonth[]>([]);
 
   // Log render information
@@ -143,21 +144,25 @@ export function PathwayTimeline() {
     type: FormDataEntryValue | null;
     duration: FormDataEntryValue | null;
     description: FormDataEntryValue | null;
+    location?: FormDataEntryValue | null;
   }) => {
     if (!selectedPathway || !selectedWeek) return;
     
     try {
+      const eventType = String(eventData.type || 'workshop');
       const newEvent = {
         title: String(eventData.title || ''),
         description: String(eventData.description || ''),
-        type: (String(eventData.type || 'workshop')) as "workshop" | "elearning" | "assessment" | "assignment" | "group" | "checkpoint",
+        type: eventType as "workshop" | "elearning" | "assessment" | "assignment" | "group" | "checkpoint",
         startDate: new Date().toISOString(),
         endDate: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours later
         duration: parseInt(String(eventData.duration || '2')) || 2,
         format: 'online' as const, // Default to online format
         objectives: eventData.description ? [String(eventData.description)] : [], // Convert to array
         resources: [],
-        dependencies: []
+        dependencies: [],
+        // Add location for workshop events
+        ...(eventType === 'workshop' && { location: String(eventData.location || 'TBD') })
       };
 
       // Add placement information to the event
@@ -171,6 +176,7 @@ export function PathwayTimeline() {
       
       setShowAddEventModal(false);
       setSelectedWeek(null);
+      setSelectedEventType('');
     } catch (error) {
       console.error('Error adding event:', error);
       alert('Failed to add event. Check console for details.');
@@ -333,7 +339,8 @@ export function PathwayTimeline() {
                 title: formData.get('title'),
                 type: formData.get('type'),
                 duration: formData.get('duration'),
-                description: formData.get('description')
+                description: formData.get('description'),
+                location: formData.get('location')
               });
             }}>
               <div className="space-y-4">
@@ -352,6 +359,8 @@ export function PathwayTimeline() {
                   <select
                     name="type"
                     required
+                    value={selectedEventType}
+                    onChange={(e) => setSelectedEventType(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Select type</option>
@@ -363,6 +372,18 @@ export function PathwayTimeline() {
                     <option value="checkpoint">{getEventTypeLabel('checkpoint')}</option>
                   </select>
                 </div>
+                {selectedEventType === 'workshop' && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Location</label>
+                    <input
+                      name="location"
+                      type="text"
+                      required
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="e.g., Conference Room A, Online, TBD"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Duration (hours)</label>
                   <input
@@ -391,6 +412,7 @@ export function PathwayTimeline() {
                   onClick={() => {
                     setShowAddEventModal(false);
                     setSelectedWeek(null);
+                    setSelectedEventType('');
                   }}
                   className="px-4 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
                 >
