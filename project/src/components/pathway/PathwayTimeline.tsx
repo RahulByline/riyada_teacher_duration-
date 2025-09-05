@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Users, Plus, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Calendar, Clock, Users, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { usePathway } from '../../contexts/PathwayContext';
-import type { LearningEvent } from '../../types/cefr';
 
 // Define timeline structure types
 interface TimelineEvent {
@@ -53,10 +52,17 @@ const generateTimelineStructure = (duration: number): TimelineMonth[] => {
 };
 
 const eventTypeConfig = {
-  workshop: { color: 'blue', icon: Calendar },
-  elearning: { color: 'green', icon: Clock },
-  assessment: { color: 'purple', icon: Users },
-  assignment: { color: 'orange', icon: Clock },
+  workshop: { color: 'blue', icon: Calendar, label: 'Workshop' },
+  elearning: { color: 'green', icon: Clock, label: 'eLearning' },
+  assessment: { color: 'purple', icon: Users, label: 'Assessment' },
+  assignment: { color: 'orange', icon: Clock, label: 'Assignment' },
+  group: { color: 'indigo', icon: Users, label: 'Group Work' },
+  checkpoint: { color: 'red', icon: Calendar, label: 'Checkpoint' },
+};
+
+// Function to get event type display name
+const getEventTypeLabel = (type: string): string => {
+  return eventTypeConfig[type as keyof typeof eventTypeConfig]?.label || type.charAt(0).toUpperCase() + type.slice(1);
 };
 
 const statusConfig = {
@@ -66,7 +72,7 @@ const statusConfig = {
 };
 
 export function PathwayTimeline() {
-  const { selectedPathway, addEvent, deleteEvent } = usePathway();
+  const { selectedPathway, addEvent, deleteEvent, refreshPathwayEvents } = usePathway();
   const [showAddEventModal, setShowAddEventModal] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState<{monthIndex: number, weekIndex: number} | null>(null);
   const [timelineData, setTimelineData] = useState<TimelineMonth[]>([]);
@@ -185,6 +191,18 @@ export function PathwayTimeline() {
     }
   };
 
+  const handleRefreshEvents = async () => {
+    if (!selectedPathway) return;
+    
+    try {
+      await refreshPathwayEvents(selectedPathway.id);
+      console.log('✅ Events refreshed successfully');
+    } catch (error) {
+      console.error('Error refreshing events:', error);
+      alert('Failed to refresh events. Check console for details.');
+    }
+  };
+
   if (!selectedPathway) {
     return (
       <div className="p-6 text-center">
@@ -207,6 +225,14 @@ export function PathwayTimeline() {
             <h2 className="text-xl font-semibold text-slate-900">{selectedPathway.title} Timeline</h2>
             <p className="text-slate-600">{selectedPathway.duration} months • {selectedPathway.total_hours} hours</p>
           </div>
+          <button
+            onClick={handleRefreshEvents}
+            className="flex items-center gap-2 px-4 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            title="Refresh events from database"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span className="text-sm">Refresh Events</span>
+          </button>
         </div>
         
         {/* Debug info */}
@@ -248,9 +274,16 @@ export function PathwayTimeline() {
                                 <div className={`p-1 rounded bg-${config.color}-100`}>
                                   <Icon className={`w-3 h-3 text-${config.color}-600`} />
                                 </div>
-                                <h5 className="text-xs font-medium text-slate-900 leading-tight">
-                                  {event.title}
-                                </h5>
+                                <div className="flex-1 min-w-0">
+                                  <h5 className="text-xs font-medium text-slate-900 leading-tight">
+                                    {event.title}
+                                  </h5>
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-${config.color}-100 text-${config.color}-700`}>
+                                      {getEventTypeLabel(event.type)}
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
                               <button
                                 onClick={() => handleDeleteEvent(event.id)}
@@ -322,10 +355,12 @@ export function PathwayTimeline() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Select type</option>
-                    <option value="workshop">Workshop</option>
-                    <option value="elearning">eLearning</option>
-                    <option value="assessment">Assessment</option>
-                    <option value="assignment">Assignment</option>
+                    <option value="workshop">{getEventTypeLabel('workshop')}</option>
+                    <option value="elearning">{getEventTypeLabel('elearning')}</option>
+                    <option value="assessment">{getEventTypeLabel('assessment')}</option>
+                    <option value="assignment">{getEventTypeLabel('assignment')}</option>
+                    <option value="group">{getEventTypeLabel('group')}</option>
+                    <option value="checkpoint">{getEventTypeLabel('checkpoint')}</option>
                   </select>
                 </div>
                 <div>

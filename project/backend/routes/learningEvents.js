@@ -174,4 +174,52 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Delete learning event
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log('🗑️ Deleting learning event with ID:', id);
+    
+    // Check if event exists
+    const existingEvent = await executeQuery(
+      'SELECT * FROM learning_events WHERE id = ?',
+      [id]
+    );
+    
+    if (existingEvent.length === 0) {
+      return res.status(404).json({ error: 'Learning event not found' });
+    }
+    
+    // Delete the event
+    const result = await executeQuery(
+      'DELETE FROM learning_events WHERE id = ?',
+      [id]
+    );
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Learning event not found' });
+    }
+    
+    console.log('✅ Learning event deleted successfully:', id);
+    
+    res.json({
+      message: 'Learning event deleted successfully',
+      deletedId: id
+    });
+  } catch (error) {
+    console.error('Delete learning event error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      sqlMessage: error.sqlMessage
+    });
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 export default router;

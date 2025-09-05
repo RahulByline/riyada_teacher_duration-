@@ -52,13 +52,13 @@ export function useResources(programId?: string, monthNumber?: number, component
         uploadDate: resource.created_at ? resource.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
         lastModified: resource.updated_at ? resource.updated_at.split('T')[0] : new Date().toISOString().split('T')[0],
         uploadedBy: resource.uploaded_by_name || 'Unknown',
-        downloadCount: resource.download_count || 0,
+        downloadCount: 0,
         category: resource.category || 'trainer-resources',
         programId: resource.program_id || undefined,
         monthNumber: resource.month_number || undefined,
         componentId: resource.component_id || undefined,
-        tags: resource.tags ? JSON.parse(resource.tags) : [],
-        isPublic: resource.is_public || false,
+        tags: Array.isArray(resource.tags) ? resource.tags : (resource.tags ? JSON.parse(resource.tags) : []),
+        isPublic: Boolean(resource.is_public),
         version: resource.version || '1.0',
         status: resource.status || 'draft'
       }));
@@ -128,16 +128,6 @@ export function useResources(programId?: string, monthNumber?: number, component
     }
   };
 
-  const incrementDownloadCount = async (id: string) => {
-    try {
-      // For now, we'll skip this until we implement download tracking
-      // This can be implemented later with a separate downloads table
-      console.log('Download count increment not yet implemented');
-    } catch (err) {
-      console.error('Error incrementing download count:', err);
-    }
-  };
-
   const deleteResource = async (id: string) => {
     try {
       await mysqlClient.deleteResource(id);
@@ -155,7 +145,6 @@ export function useResources(programId?: string, monthNumber?: number, component
     createResource,
     updateResource,
     deleteResource,
-    incrementDownloadCount,
     refetch: fetchResources
   };
 }

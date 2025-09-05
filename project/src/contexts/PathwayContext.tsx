@@ -23,6 +23,8 @@ interface Pathway {
   total_hours: number; // Changed to match backend schema
   events: LearningEvent[];
   participants: string[];
+  participant_count?: number;
+  trainer_count?: number;
   status: 'draft' | 'active' | 'completed';
   created_by?: string;
   cefr_level?: string;
@@ -35,12 +37,13 @@ interface PathwayContextType {
   selectedPathway: Pathway | null;
   loading: boolean;
   setSelectedPathway: (pathway: Pathway | null) => void;
-  createPathway: (pathway: Omit<Pathway, 'id' | 'events' | 'participants'>) => Promise<void>;
-  updatePathway: (id: string, pathway: Partial<Pathway>) => Promise<void>;
+  createPathway: (pathway: Omit<Pathway, 'id' | 'events' | 'participants'> & { participants?: string[], trainers?: {id: string, role: string}[] }) => Promise<void>;
+  updatePathway: (id: string, pathway: Partial<Pathway> & { participants?: string[], trainers?: {id: string, role: string}[] }) => Promise<void>;
   deletePathway: (id: string) => Promise<void>;
   addEvent: (pathwayId: string, event: Omit<LearningEvent, 'id'>) => Promise<void>;
   deleteEvent: (pathwayId: string, eventId: string) => Promise<void>;
   refetch: () => Promise<void>;
+  refreshPathwayEvents: (pathwayId: string) => Promise<void>;
 }
 
 const PathwayContext = createContext<PathwayContextType | undefined>(undefined);
@@ -60,13 +63,54 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       const response = await mysqlClient.getPathways();
       if (response.pathways) {
-        // Transform backend data to match frontend interface
-        const transformedPathways = response.pathways.map((pathway: any) => ({
-          ...pathway,
-          total_hours: pathway.total_hours || 0,
-          events: [], // Will be populated separately if needed
-          participants: [] // Will be populated separately if needed
-        }));
+        // Transform backend data to match frontend interface and fetch events for each pathway
+        const transformedPathways = await Promise.all(
+          response.pathways.map(async (pathway: any) => {
+            try {
+              // Fetch events for this pathway
+              const eventsResponse = await mysqlClient.getLearningEventsByPathway(pathway.id);
+              const events = eventsResponse.events || eventsResponse || [];
+              
+              // Transform events to match frontend interface
+              const transformedEvents = events.map((event: any) => ({
+                id: event.id,
+                title: event.title,
+                description: event.description || '',
+                type: event.type,
+                startDate: event.start_date || event.startDate || new Date().toISOString(),
+                endDate: event.end_date || event.endDate || new Date().toISOString(),
+                duration: event.duration || 2,
+                format: event.format || 'online',
+                objectives: event.objectives ? (Array.isArray(event.objectives) ? event.objectives : JSON.parse(event.objectives)) : [],
+                resources: event.resources ? (Array.isArray(event.resources) ? event.resources : JSON.parse(event.resources)) : [],
+                dependencies: event.dependencies ? (Array.isArray(event.dependencies) ? event.dependencies : JSON.parse(event.dependencies)) : [],
+                month_index: event.month_index || 1,
+                week_index: event.week_index || 1
+              }));
+
+              return {
+                ...pathway,
+                total_hours: pathway.total_hours || 0,
+                events: transformedEvents,
+                participants: [], // Will be populated separately if needed
+                participant_count: pathway.participant_count || 0,
+                trainer_count: pathway.trainer_count || 0
+              };
+            } catch (eventError) {
+              console.error(`Error fetching events for pathway ${pathway.id}:`, eventError);
+              return {
+                ...pathway,
+                total_hours: pathway.total_hours || 0,
+                events: [], // Fallback to empty array if events fetch fails
+                participants: [],
+                participant_count: pathway.participant_count || 0,
+                trainer_count: pathway.trainer_count || 0
+              };
+            }
+          })
+        );
+        
+        console.log('✅ Pathways with events loaded:', transformedPathways);
         setPathways(transformedPathways);
       }
     } catch (error) {
@@ -77,7 +121,7 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const createPathway = async (pathway: Omit<Pathway, 'id' | 'events' | 'participants'>) => {
+  const createPathway = async (pathway: Omit<Pathway, 'id' | 'events' | 'participants'> & { participants?: string[], trainers?: {id: string, role: string}[] }) => {
     try {
       console.log('🔍 PathwayContext: Creating pathway with data:', pathway);
       setLoading(true);
@@ -90,7 +134,9 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
         total_hours: pathway.total_hours,
         status: pathway.status,
         cefr_level: pathway.cefr_level,
-        created_by: '550e8400-e29b-41d4-a716-446655440001' // Use the admin user ID from sample data
+        created_by: '550e8400-e29b-41d4-a716-446655440001', // Use the admin user ID from sample data
+        participants: pathway.participants || [],
+        trainers: pathway.trainers || []
       };
 
       console.log('📤 PathwayContext: Sending to backend:', backendData);
@@ -100,18 +146,10 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
       console.log('📥 PathwayContext: Backend response:', response);
       
       if (response.pathway) {
-        // Transform the created pathway to match frontend interface
-        const newPathway: Pathway = {
-          ...response.pathway,
-          total_hours: response.pathway.total_hours || 0,
-          events: [],
-          participants: []
-        };
+        console.log('✅ PathwayContext: Pathway created successfully');
         
-        console.log('✅ PathwayContext: Pathway created successfully:', newPathway);
-        
-        setPathways(prev => [...prev, newPathway]);
-        setSelectedPathway(newPathway);
+        // Refetch pathways to get updated participant counts
+        await refetch();
       } else {
         console.error('❌ PathwayContext: No pathway in response:', response);
       }
@@ -123,7 +161,7 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updatePathway = async (id: string, updates: Partial<Pathway>) => {
+  const updatePathway = async (id: string, updates: Partial<Pathway> & { participants?: string[], trainers?: {id: string, role: string}[] }) => {
     try {
       setLoading(true);
       
@@ -135,18 +173,16 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
       if (updates.total_hours) backendData.total_hours = updates.total_hours;
       if (updates.status) backendData.status = updates.status;
       if (updates.cefr_level) backendData.cefr_level = updates.cefr_level;
+      if (updates.participants) backendData.participants = updates.participants;
+      if (updates.trainers) backendData.trainers = updates.trainers;
 
-      await mysqlClient.updatePathway(id, backendData);
+      console.log('📤 PathwayContext: Updating pathway with data:', backendData);
+      const response = await mysqlClient.updatePathway(id, backendData);
       
-      // Update local state
-      setPathways(prev => prev.map(pathway => 
-        pathway.id === id ? { ...pathway, ...updates } : pathway
-      ));
+      console.log('📥 PathwayContext: Update response:', response);
       
-      // Update selected pathway if it's the one being updated
-      if (selectedPathway?.id === id) {
-        setSelectedPathway(prev => prev ? { ...prev, ...updates } : null);
-      }
+      // Refetch pathways to get updated participant counts
+      await refetch();
     } catch (err) {
       console.error('Error updating pathway:', err);
       throw err;
@@ -241,7 +277,6 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
           objectives: eventData.objectives ? (Array.isArray(eventData.objectives) ? eventData.objectives : JSON.parse(eventData.objectives)) : [],
           resources: eventData.resources ? (Array.isArray(eventData.resources) ? eventData.resources : JSON.parse(eventData.resources)) : [],
           dependencies: eventData.dependencies ? (Array.isArray(eventData.dependencies) ? eventData.dependencies : JSON.parse(eventData.dependencies)) : [],
-          status: eventData.status || 'scheduled',
           month_index: eventData.month_index || 1,
           week_index: eventData.week_index || 1
         };
@@ -263,6 +298,38 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
         );
         
         console.log('✅ Local state updated');
+        
+        // Auto-create workshop if event type is 'workshop'
+        if (event.type === 'workshop') {
+          try {
+            console.log('🎯 Auto-creating workshop for event:', newEvent.title);
+            
+            // Create default workshop data based on the learning event
+            const workshopData = {
+              title: newEvent.title,
+              description: newEvent.description || `Workshop: ${newEvent.title}`,
+              facilitator_id: null, // Will be assigned later
+              max_participants: 20, // Default value
+              workshop_date: newEvent.startDate,
+              duration_hours: newEvent.duration || 2,
+              location: newEvent.format === 'online' ? 'Online' : 'TBD',
+              pathway_id: pathwayId,
+              materials_required: newEvent.resources || [],
+              prerequisites: newEvent.dependencies || []
+            };
+            
+            console.log('📤 Creating workshop with data:', workshopData);
+            
+            // Create the workshop
+            const workshopResponse = await mysqlClient.createWorkshop(workshopData);
+            console.log('✅ Workshop created successfully:', workshopResponse);
+            
+          } catch (workshopError) {
+            console.error('⚠️ Failed to auto-create workshop:', workshopError);
+            // Don't throw error - learning event was created successfully
+            // Just log the workshop creation failure
+          }
+        }
       } else {
         console.error('❌ No event data in response:', response);
         throw new Error('No event data received from backend');
@@ -303,6 +370,52 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refreshPathwayEvents = async (pathwayId: string) => {
+    try {
+      console.log('🔄 Refreshing events for pathway:', pathwayId);
+      
+      // Fetch events for this pathway
+      const eventsResponse = await mysqlClient.getLearningEventsByPathway(pathwayId);
+      const events = eventsResponse.events || eventsResponse || [];
+      
+      // Transform events to match frontend interface
+      const transformedEvents = events.map((event: any) => ({
+        id: event.id,
+        title: event.title,
+        description: event.description || '',
+        type: event.type,
+        startDate: event.start_date || event.startDate || new Date().toISOString(),
+        endDate: event.end_date || event.endDate || new Date().toISOString(),
+        duration: event.duration || 2,
+        format: event.format || 'online',
+        objectives: event.objectives ? (Array.isArray(event.objectives) ? event.objectives : JSON.parse(event.objectives)) : [],
+        resources: event.resources ? (Array.isArray(event.resources) ? event.resources : JSON.parse(event.resources)) : [],
+        dependencies: event.dependencies ? (Array.isArray(event.dependencies) ? event.dependencies : JSON.parse(event.dependencies)) : [],
+        month_index: event.month_index || 1,
+        week_index: event.week_index || 1
+      }));
+
+      // Update local state
+      setPathways(prev => prev.map(pathway => 
+        pathway.id === pathwayId 
+          ? { ...pathway, events: transformedEvents }
+          : pathway
+      ));
+      
+      // Also update selectedPathway if it's the current pathway
+      setSelectedPathway(prev => 
+        prev && prev.id === pathwayId 
+          ? { ...prev, events: transformedEvents }
+          : prev
+      );
+      
+      console.log('✅ Events refreshed for pathway:', pathwayId, transformedEvents);
+    } catch (err) {
+      console.error('Error refreshing pathway events:', err);
+      throw err;
+    }
+  };
+
   return (
     <PathwayContext.Provider value={{
       pathways,
@@ -314,7 +427,8 @@ export function PathwayProvider({ children }: { children: React.ReactNode }) {
       deletePathway,
       addEvent,
       deleteEvent,
-      refetch
+      refetch,
+      refreshPathwayEvents
     }}>
       {children}
     </PathwayContext.Provider>

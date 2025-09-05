@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus, Calendar, Clock, Users, BookOpen, Target, Edit, X } from 'lucide-react';
 import { PathwayTimeline } from './pathway/PathwayTimeline';
 import { EventLibrary } from './pathway/EventLibrary';
-import { PathwaySettings } from './pathway/PathwaySettings';
 import { usePathway } from '../contexts/PathwayContext';
+import { mysqlClient } from '../lib/mysql';
 
 export function PathwayBuilder() {
   const { pathways, selectedPathway, setSelectedPathway, createPathway, updatePathway, deletePathway } = usePathway();
@@ -13,19 +13,138 @@ export function PathwayBuilder() {
   const [editingPathway, setEditingPathway] = useState<any>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingPathway, setDeletingPathway] = useState<any>(null);
+  
+  // Teacher and trainer management
+  const [availableTeachers, setAvailableTeachers] = useState<any[]>([]);
+  const [availableTrainers, setAvailableTrainers] = useState<any[]>([]);
+  const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+  const [selectedTrainers, setSelectedTrainers] = useState<{id: string, role: string}[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  
+  // Edit modal state
+  const [editSelectedParticipants, setEditSelectedParticipants] = useState<string[]>([]);
+  const [editSelectedTrainers, setEditSelectedTrainers] = useState<{id: string, role: string}[]>([]);
+
+  // Fetch available teachers and trainers
+  const fetchAvailableUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      const [teachersResponse, trainersResponse] = await Promise.all([
+        mysqlClient.getUsersByRole('teacher'),
+        mysqlClient.getUsersByRole('trainer')
+      ]);
+      
+      console.log('👥 Fetched teachers:', teachersResponse.users);
+      console.log('👨‍💼 Fetched trainers:', trainersResponse.users);
+      
+      setAvailableTeachers(teachersResponse.users || []);
+      setAvailableTrainers(trainersResponse.users || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
 
   const handleCreatePathway = () => {
+    setSelectedParticipants([]);
+    setSelectedTrainers([]);
+    fetchAvailableUsers();
     setShowCreateModal(true);
   };
 
-  const handleEditPathway = (pathway: any) => {
+  // Helper functions for managing selections
+  const toggleParticipant = (teacherId: string) => {
+    setSelectedParticipants(prev => {
+      const newSelection = prev.includes(teacherId) 
+        ? prev.filter(id => id !== teacherId)
+        : [...prev, teacherId];
+      console.log('🔄 Updated participants:', newSelection);
+      return newSelection;
+    });
+  };
+
+  const toggleTrainer = (trainerId: string, role: string = 'assistant_trainer') => {
+    setSelectedTrainers(prev => {
+      const existing = prev.find(t => t.id === trainerId);
+      const newSelection = existing
+        ? prev.filter(t => t.id !== trainerId)
+        : [...prev, { id: trainerId, role }];
+      console.log('🔄 Updated trainers:', newSelection);
+      return newSelection;
+    });
+  };
+
+  const updateTrainerRole = (trainerId: string, newRole: string) => {
+    setSelectedTrainers(prev => 
+      prev.map(t => t.id === trainerId ? { ...t, role: newRole } : t)
+    );
+  };
+
+  // Helper functions for edit modal
+  const toggleEditParticipant = (teacherId: string) => {
+    setEditSelectedParticipants(prev => {
+      const newSelection = prev.includes(teacherId) 
+        ? prev.filter(id => id !== teacherId)
+        : [...prev, teacherId];
+      console.log('🔄 Updated edit participants:', newSelection);
+      return newSelection;
+    });
+  };
+
+  const toggleEditTrainer = (trainerId: string, role: string = 'assistant_trainer') => {
+    setEditSelectedTrainers(prev => {
+      const existing = prev.find(t => t.id === trainerId);
+      const newSelection = existing
+        ? prev.filter(t => t.id !== trainerId)
+        : [...prev, { id: trainerId, role }];
+      console.log('🔄 Updated edit trainers:', newSelection);
+      return newSelection;
+    });
+  };
+
+  const updateEditTrainerRole = (trainerId: string, newRole: string) => {
+    setEditSelectedTrainers(prev => 
+      prev.map(t => t.id === trainerId ? { ...t, role: newRole } : t)
+    );
+  };
+
+  const handleEditPathway = async (pathway: any) => {
     setEditingPathway(pathway);
+    
+    // Fetch current participants and trainers for this pathway
+    try {
+      const [participantsResponse, trainersResponse] = await Promise.all([
+        mysqlClient.getPathwayParticipants(pathway.id),
+        mysqlClient.getPathwayTrainers(pathway.id)
+      ]);
+      
+      // Set current participants
+      const currentParticipants = participantsResponse.participants?.map((p: any) => p.teacher_id) || [];
+      setEditSelectedParticipants(currentParticipants);
+      
+      // Set current trainers
+      const currentTrainers = trainersResponse.trainers?.map((t: any) => ({ id: t.trainer_id, role: t.role })) || [];
+      setEditSelectedTrainers(currentTrainers);
+      
+      console.log('📋 Current participants:', currentParticipants);
+      console.log('👨‍💼 Current trainers:', currentTrainers);
+    } catch (error) {
+      console.error('Error fetching pathway assignments:', error);
+      setEditSelectedParticipants([]);
+      setEditSelectedTrainers([]);
+    }
+    
+    // Fetch available users
+    fetchAvailableUsers();
     setShowEditModal(true);
   };
 
   const handleUpdatePathway = async (pathwayData: any) => {
     try {
       console.log('🔍 Updating pathway with data:', pathwayData);
+      console.log('👥 Edit selected participants:', editSelectedParticipants);
+      console.log('👨‍💼 Edit selected trainers:', editSelectedTrainers);
       
       const pathwayPayload = {
         title: pathwayData.title,
@@ -33,7 +152,9 @@ export function PathwayBuilder() {
         duration: pathwayData.duration,
         total_hours: pathwayData.totalHours,
         status: pathwayData.status,
-        cefr_level: editingPathway.cefr_level
+        cefr_level: editingPathway.cefr_level,
+        participants: editSelectedParticipants,
+        trainers: editSelectedTrainers
       };
       
       console.log('📤 Sending pathway update payload:', pathwayPayload);
@@ -43,6 +164,13 @@ export function PathwayBuilder() {
       console.log('✅ Pathway updated successfully!');
       setShowEditModal(false);
       setEditingPathway(null);
+      setEditSelectedParticipants([]);
+      setEditSelectedTrainers([]);
+      
+      // Refresh pathways data to show updated participant counts
+      console.log('🔄 Refreshing pathways data...');
+      // The updatePathway function in PathwayContext should already handle this,
+      // but let's make sure by calling refetch if needed
     } catch (error) {
       console.error('❌ Error updating pathway:', error);
       alert('Failed to update pathway. Check console for details.');
@@ -72,14 +200,18 @@ export function PathwayBuilder() {
   const handleSavePathway = async (pathwayData: any) => {
     try {
       console.log('🔍 Creating pathway with data:', pathwayData);
+      console.log('👥 Selected participants:', pathwayData.participants);
+      console.log('👨‍💼 Selected trainers:', pathwayData.trainers);
       
       const pathwayPayload = {
         title: pathwayData.title || 'New Pathway',
         description: pathwayData.description || 'Description',
         duration: pathwayData.duration || 6,
         total_hours: pathwayData.totalHours || 120,
-        events: [],
-        participants: [],
+        cefr_level: pathwayData.cefrLevel || null,
+        created_by: 'admin-user-id', // TODO: Get from auth context
+        participants: pathwayData.participants || [],
+        trainers: pathwayData.trainers || [],
         status: 'draft' as const
       };
       
@@ -89,6 +221,8 @@ export function PathwayBuilder() {
       
       console.log('✅ Pathway created successfully!');
       setShowCreateModal(false);
+      setSelectedParticipants([]);
+      setSelectedTrainers([]);
     } catch (error) {
       console.error('❌ Error creating pathway:', error);
       alert('Failed to create pathway. Check console for details.');
@@ -142,7 +276,7 @@ export function PathwayBuilder() {
               </div>
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <Users className="w-4 h-4" />
-                {pathway.participants.length} participants
+                {pathway.participant_count || 0} participants
               </div>
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <Target className="w-4 h-4" />
@@ -153,6 +287,16 @@ export function PathwayBuilder() {
                 {pathway.total_hours} hours
               </div>
             </div>
+            
+            {pathway.trainer_count? (pathway.trainer_count && pathway.trainer_count > 0) && (
+              <div className="mb-4">
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <Users className="w-4 h-4" />
+                  {pathway.trainer_count} trainers assigned
+                </div>
+              </div>
+            ) : null}
+            
 
             <div className="w-full bg-slate-200 rounded-full h-2 mb-4">
               <div className="bg-blue-600 h-2 rounded-full" style={{width: '68%'}}></div>
@@ -184,63 +328,179 @@ export function PathwayBuilder() {
       {/* Create Pathway Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+          <div className="bg-white rounded-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">Create New Pathway</h3>
             <form onSubmit={(e) => {
               e.preventDefault();
               const formData = new FormData(e.target as HTMLFormElement);
+              console.log('📝 Form submission - selectedParticipants:', selectedParticipants);
+              console.log('📝 Form submission - selectedTrainers:', selectedTrainers);
               handleSavePathway({
                 title: formData.get('title'),
                 description: formData.get('description'),
                 duration: parseInt(formData.get('duration') as string),
-                totalHours: parseInt(formData.get('totalHours') as string)
+                totalHours: parseInt(formData.get('totalHours') as string),
+                cefrLevel: formData.get('cefrLevel'),
+                participants: selectedParticipants,
+                trainers: selectedTrainers
               });
             }}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Title</label>
-                  <input
-                    name="title"
-                    type="text"
-                    required
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter pathway title"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
-                  <textarea
-                    name="description"
-                    rows={3}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter pathway description"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Basic Information */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-slate-900 border-b border-slate-200 pb-2">Basic Information</h4>
+                  
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Duration (months)</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Title *</label>
                     <input
-                      name="duration"
-                      type="number"
-                      min="1"
-                      max="12"
-                      defaultValue="6"
+                      name="title"
+                      type="text"
+                      required
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter pathway title"
                     />
                   </div>
+                  
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Total Hours</label>
-                    <input
-                      name="totalHours"
-                      type="number"
-                      min="1"
-                      defaultValue="120"
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
+                    <textarea
+                      name="description"
+                      rows={3}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter pathway description"
                     />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Duration (months) *</label>
+                      <input
+                        name="duration"
+                        type="number"
+                        min="1"
+                        max="12"
+                        defaultValue="6"
+                        required
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Total Hours *</label>
+                      <input
+                        name="totalHours"
+                        type="number"
+                        min="1"
+                        defaultValue="120"
+                        required
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">CEFR Level</label>
+                    <select
+                      name="cefrLevel"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select CEFR Level</option>
+                      <option value="A1">A1 - Beginner</option>
+                      <option value="A2">A2 - Elementary</option>
+                      <option value="B1">B1 - Intermediate</option>
+                      <option value="B2">B2 - Upper Intermediate</option>
+                      <option value="C1">C1 - Advanced</option>
+                      <option value="C2">C2 - Proficient</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Teacher and Trainer Assignment */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-slate-900 border-b border-slate-200 pb-2">Assign Teachers & Trainers</h4>
+                  
+                  {/* Participants (Teachers) */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Participants (Teachers) 
+                      <span className="text-xs text-slate-500 ml-1">({selectedParticipants.length} selected)</span>
+                    </label>
+                    <div className="border border-slate-200 rounded-lg max-h-32 overflow-y-auto">
+                      {loadingUsers ? (
+                        <div className="p-3 text-center text-slate-500">Loading teachers...</div>
+                      ) : availableTeachers.length === 0 ? (
+                        <div className="p-3 text-center text-slate-500">No teachers available. Create teachers first.</div>
+                      ) : (
+                        availableTeachers.map((teacher) => (
+                          <div key={teacher.id} className="flex items-center p-2 hover:bg-slate-50">
+                            <input
+                              type="checkbox"
+                              id={`teacher-${teacher.id}`}
+                              checked={selectedParticipants.includes(teacher.id)}
+                              onChange={() => toggleParticipant(teacher.id)}
+                              className="mr-3"
+                            />
+                            <label htmlFor={`teacher-${teacher.id}`} className="flex-1 cursor-pointer">
+                              <div className="font-medium text-sm">{teacher.name}</div>
+                              <div className="text-xs text-slate-500">{teacher.email}</div>
+                            </label>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Trainers */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Trainers 
+                      <span className="text-xs text-slate-500 ml-1">({selectedTrainers.length} selected)</span>
+                    </label>
+                    <div className="border border-slate-200 rounded-lg max-h-32 overflow-y-auto">
+                      {loadingUsers ? (
+                        <div className="p-3 text-center text-slate-500">Loading trainers...</div>
+                      ) : availableTrainers.length === 0 ? (
+                        <div className="p-3 text-center text-slate-500">No trainers available. Create trainers first.</div>
+                      ) : (
+                        availableTrainers.map((trainer) => {
+                          const isSelected = selectedTrainers.find(t => t.id === trainer.id);
+                          return (
+                            <div key={trainer.id} className="p-2 hover:bg-slate-50">
+                              <div className="flex items-center">
+                                <input
+                                  type="checkbox"
+                                  id={`trainer-${trainer.id}`}
+                                  checked={!!isSelected}
+                                  onChange={() => toggleTrainer(trainer.id)}
+                                  className="mr-3"
+                                />
+                                <label htmlFor={`trainer-${trainer.id}`} className="flex-1 cursor-pointer">
+                                  <div className="font-medium text-sm">{trainer.name}</div>
+                                  <div className="text-xs text-slate-500">{trainer.email}</div>
+                                </label>
+                              </div>
+                              {isSelected && (
+                                <div className="ml-6 mt-2">
+                                  <select
+                                    value={isSelected.role}
+                                    onChange={(e) => updateTrainerRole(trainer.id, e.target.value)}
+                                    className="text-xs px-2 py-1 border border-slate-200 rounded"
+                                  >
+                                    <option value="lead_trainer">Lead Trainer</option>
+                                    <option value="assistant_trainer">Assistant Trainer</option>
+                                    <option value="guest_trainer">Guest Trainer</option>
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end gap-3 mt-6">
+              
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
@@ -263,13 +523,15 @@ export function PathwayBuilder() {
       {/* Edit Pathway Modal */}
       {showEditModal && editingPathway && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+          <div className="bg-white rounded-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-slate-900">Edit Pathway</h3>
               <button
                 onClick={() => {
                   setShowEditModal(false);
                   setEditingPathway(null);
+                  setEditSelectedParticipants([]);
+                  setEditSelectedTrainers([]);
                 }}
                 className="text-slate-400 hover:text-slate-600"
               >
@@ -279,79 +541,197 @@ export function PathwayBuilder() {
             <form onSubmit={(e) => {
               e.preventDefault();
               const formData = new FormData(e.target as HTMLFormElement);
+              console.log('📝 Edit form submission - editSelectedParticipants:', editSelectedParticipants);
+              console.log('📝 Edit form submission - editSelectedTrainers:', editSelectedTrainers);
               handleUpdatePathway({
                 title: formData.get('title'),
                 description: formData.get('description'),
                 duration: parseInt(formData.get('duration') as string),
                 totalHours: parseInt(formData.get('totalHours') as string),
-                status: formData.get('status')
+                status: formData.get('status'),
+                cefrLevel: formData.get('cefrLevel')
               });
             }}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Title</label>
-                  <input
-                    name="title"
-                    type="text"
-                    required
-                    defaultValue={editingPathway.title}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter pathway title"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
-                  <textarea
-                    name="description"
-                    rows={3}
-                    defaultValue={editingPathway.description}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter pathway description"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Basic Information */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-slate-900 border-b border-slate-200 pb-2">Basic Information</h4>
+                  
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Duration (months)</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Title *</label>
                     <input
-                      name="duration"
-                      type="number"
-                      min="1"
-                      max="12"
-                      defaultValue={editingPathway.duration}
+                      name="title"
+                      type="text"
+                      required
+                      defaultValue={editingPathway.title}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter pathway title"
                     />
                   </div>
+                  
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Total Hours</label>
-                    <input
-                      name="totalHours"
-                      type="number"
-                      min="1"
-                      defaultValue={editingPathway.total_hours}
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
+                    <textarea
+                      name="description"
+                      rows={3}
+                      defaultValue={editingPathway.description}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter pathway description"
                     />
                   </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Duration (months) *</label>
+                      <input
+                        name="duration"
+                        type="number"
+                        min="1"
+                        max="12"
+                        defaultValue={editingPathway.duration}
+                        required
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Total Hours *</label>
+                      <input
+                        name="totalHours"
+                        type="number"
+                        min="1"
+                        defaultValue={editingPathway.total_hours}
+                        required
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">CEFR Level</label>
+                    <select
+                      name="cefrLevel"
+                      defaultValue={editingPathway.cefr_level || ''}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select CEFR Level</option>
+                      <option value="A1">A1 - Beginner</option>
+                      <option value="A2">A2 - Elementary</option>
+                      <option value="B1">B1 - Intermediate</option>
+                      <option value="B2">B2 - Upper Intermediate</option>
+                      <option value="C1">C1 - Advanced</option>
+                      <option value="C2">C2 - Proficient</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
+                    <select
+                      name="status"
+                      defaultValue={editingPathway.status}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="draft">Draft</option>
+                      <option value="active">Active</option>
+                      <option value="completed">Completed</option>
+                      <option value="archived">Archived</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
-                  <select
-                    name="status"
-                    defaultValue={editingPathway.status}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="draft">Draft</option>
-                    <option value="active">Active</option>
-                    <option value="completed">Completed</option>
-                    <option value="archived">Archived</option>
-                  </select>
+
+                {/* Teacher and Trainer Assignment */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-slate-900 border-b border-slate-200 pb-2">Assign Teachers & Trainers</h4>
+                  
+                  {/* Participants (Teachers) */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Participants (Teachers) 
+                      <span className="text-xs text-slate-500 ml-1">({editSelectedParticipants.length} selected)</span>
+                    </label>
+                    <div className="border border-slate-200 rounded-lg max-h-32 overflow-y-auto">
+                      {loadingUsers ? (
+                        <div className="p-3 text-center text-slate-500">Loading teachers...</div>
+                      ) : availableTeachers.length === 0 ? (
+                        <div className="p-3 text-center text-slate-500">No teachers available. Create teachers first.</div>
+                      ) : (
+                        availableTeachers.map((teacher) => (
+                          <div key={teacher.id} className="flex items-center p-2 hover:bg-slate-50">
+                            <input
+                              type="checkbox"
+                              id={`edit-teacher-${teacher.id}`}
+                              checked={editSelectedParticipants.includes(teacher.id)}
+                              onChange={() => toggleEditParticipant(teacher.id)}
+                              className="mr-3"
+                            />
+                            <label htmlFor={`edit-teacher-${teacher.id}`} className="flex-1 cursor-pointer">
+                              <div className="font-medium text-sm">{teacher.name}</div>
+                              <div className="text-xs text-slate-500">{teacher.email}</div>
+                            </label>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Trainers */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Trainers 
+                      <span className="text-xs text-slate-500 ml-1">({editSelectedTrainers.length} selected)</span>
+                    </label>
+                    <div className="border border-slate-200 rounded-lg max-h-32 overflow-y-auto">
+                      {loadingUsers ? (
+                        <div className="p-3 text-center text-slate-500">Loading trainers...</div>
+                      ) : availableTrainers.length === 0 ? (
+                        <div className="p-3 text-center text-slate-500">No trainers available. Create trainers first.</div>
+                      ) : (
+                        availableTrainers.map((trainer) => {
+                          const isSelected = editSelectedTrainers.find(t => t.id === trainer.id);
+                          return (
+                            <div key={trainer.id} className="p-2 hover:bg-slate-50">
+                              <div className="flex items-center">
+                                <input
+                                  type="checkbox"
+                                  id={`edit-trainer-${trainer.id}`}
+                                  checked={!!isSelected}
+                                  onChange={() => toggleEditTrainer(trainer.id)}
+                                  className="mr-3"
+                                />
+                                <label htmlFor={`edit-trainer-${trainer.id}`} className="flex-1 cursor-pointer">
+                                  <div className="font-medium text-sm">{trainer.name}</div>
+                                  <div className="text-xs text-slate-500">{trainer.email}</div>
+                                </label>
+                              </div>
+                              {isSelected && (
+                                <div className="ml-6 mt-2">
+                                  <select
+                                    value={isSelected.role}
+                                    onChange={(e) => updateEditTrainerRole(trainer.id, e.target.value)}
+                                    className="text-xs px-2 py-1 border border-slate-200 rounded"
+                                  >
+                                    <option value="lead_trainer">Lead Trainer</option>
+                                    <option value="assistant_trainer">Assistant Trainer</option>
+                                    <option value="guest_trainer">Guest Trainer</option>
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="flex justify-end gap-3 mt-6">
+              
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => {
                     setShowEditModal(false);
                     setEditingPathway(null);
+                    setEditSelectedParticipants([]);
+                    setEditSelectedTrainers([]);
                   }}
                   className="px-4 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
                 >
