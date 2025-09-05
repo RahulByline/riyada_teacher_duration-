@@ -264,13 +264,15 @@ function NominationForm({ onSubmit, onClose }: { onSubmit: (data: any) => Promis
     e.preventDefault();
     try {
       setSubmitting(true);
-      await onSubmit({
+      const submissionData = {
         ...formData,
         yearsExperience: parseInt(formData.yearsExperience) || 0,
         qualifications: formData.qualifications.split(',').map(q => q.trim()).filter(q => q),
         subjects: formData.subjects.split(',').map(s => s.trim()).filter(s => s),
         trainingNeeds: formData.trainingNeeds.split(',').map(t => t.trim()).filter(t => t)
-      });
+      };
+      console.log('📤 Submitting teacher nomination data:', submissionData);
+      await onSubmit(submissionData);
     } catch (error) {
       console.error('Failed to submit nomination:', error);
     } finally {
@@ -368,10 +370,11 @@ function NominationForm({ onSubmit, onClose }: { onSubmit: (data: any) => Promis
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Years of Experience</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Years of Experience *</label>
               <input
                 type="number"
                 min="0"
+                required
                 value={formData.yearsExperience}
                 onChange={(e) => setFormData(prev => ({ ...prev, yearsExperience: e.target.value }))}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"

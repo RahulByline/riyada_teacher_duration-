@@ -1,5 +1,4 @@
-import React from 'react';
-import { User, Award, Clock, TrendingUp } from 'lucide-react';
+import { User, Clock } from 'lucide-react';
 
 const participants = [
   {
@@ -10,7 +9,17 @@ const participants = [
     completedHours: 68,
     totalHours: 80,
     status: 'active',
-    lastActivity: '2 hours ago'
+    lastActivity: '2 hours ago',
+    phone: '+1 (555) 123-4567',
+    school: 'Lincoln Elementary School',
+    position: '3rd Grade Teacher',
+    experience: '5 years',
+    cefrLevel: 'B2',
+    enrollmentDate: '2024-01-15',
+    completedModules: ['Orientation', 'Teaching Fundamentals', 'Assessment Tools'],
+    currentModule: 'Advanced Teaching Methods',
+    achievements: ['First Milestone', 'Active Participation'],
+    notes: 'Highly engaged participant with excellent progress'
   },
   {
     id: '2',
@@ -20,7 +29,17 @@ const participants = [
     completedHours: 58,
     totalHours: 80,
     status: 'active',
-    lastActivity: '1 day ago'
+    lastActivity: '1 day ago',
+    phone: '+1 (555) 234-5678',
+    school: 'Roosevelt Middle School',
+    position: 'English Teacher',
+    experience: '8 years',
+    cefrLevel: 'C1',
+    enrollmentDate: '2024-01-20',
+    completedModules: ['Orientation', 'Teaching Fundamentals'],
+    currentModule: 'Assessment Tools',
+    achievements: ['First Milestone'],
+    notes: 'Steady progress, needs encouragement for advanced modules'
   },
   {
     id: '3',
@@ -30,7 +49,17 @@ const participants = [
     completedHours: 76,
     totalHours: 80,
     status: 'active',
-    lastActivity: '3 hours ago'
+    lastActivity: '3 hours ago',
+    phone: '+1 (555) 345-6789',
+    school: 'Washington High School',
+    position: 'ESL Coordinator',
+    experience: '12 years',
+    cefrLevel: 'C2',
+    enrollmentDate: '2024-01-10',
+    completedModules: ['Orientation', 'Teaching Fundamentals', 'Assessment Tools', 'Advanced Teaching Methods'],
+    currentModule: 'Final Assessment',
+    achievements: ['First Milestone', 'Active Participation', 'Leadership Award'],
+    notes: 'Outstanding participant, potential mentor candidate'
   },
   {
     id: '4',
@@ -40,7 +69,17 @@ const participants = [
     completedHours: 36,
     totalHours: 80,
     status: 'at-risk',
-    lastActivity: '1 week ago'
+    lastActivity: '1 week ago',
+    phone: '+1 (555) 456-7890',
+    school: 'Jefferson Elementary',
+    position: '2nd Grade Teacher',
+    experience: '3 years',
+    cefrLevel: 'B1',
+    enrollmentDate: '2024-01-25',
+    completedModules: ['Orientation'],
+    currentModule: 'Teaching Fundamentals',
+    achievements: [],
+    notes: 'Needs additional support and motivation'
   },
   {
     id: '5',
@@ -50,16 +89,27 @@ const participants = [
     completedHours: 80,
     totalHours: 80,
     status: 'completed',
-    lastActivity: '2 days ago'
+    lastActivity: '2 days ago',
+    phone: '+1 (555) 567-8901',
+    school: 'Madison High School',
+    position: 'English Department Head',
+    experience: '15 years',
+    cefrLevel: 'C2',
+    enrollmentDate: '2024-01-05',
+    completedModules: ['Orientation', 'Teaching Fundamentals', 'Assessment Tools', 'Advanced Teaching Methods', 'Final Assessment'],
+    currentModule: 'Completed',
+    achievements: ['First Milestone', 'Active Participation', 'Leadership Award', 'Completion Certificate'],
+    notes: 'Exemplary participant, completed all requirements ahead of schedule'
   }
 ];
 
 interface ParticipantListProps {
   searchQuery: string;
   filter: string;
+  onViewDetails: (participant: any) => void;
 }
 
-export function ParticipantList({ searchQuery, filter }: ParticipantListProps) {
+export function ParticipantList({ searchQuery, filter, onViewDetails }: ParticipantListProps) {
   const filteredParticipants = participants.filter(participant => {
     const matchesSearch = participant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          participant.email.toLowerCase().includes(searchQuery.toLowerCase());
@@ -133,7 +183,10 @@ export function ParticipantList({ searchQuery, filter }: ParticipantListProps) {
               </td>
               
               <td className="py-4 px-6">
-                <button className="text-blue-600 text-sm font-medium hover:text-blue-700">
+                <button 
+                  onClick={() => onViewDetails(participant)}
+                  className="text-blue-600 text-sm font-medium hover:text-blue-700"
+                >
                   View Details
                 </button>
               </td>

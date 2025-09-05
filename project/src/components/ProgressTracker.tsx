@@ -3,6 +3,7 @@ import { Users, TrendingUp, Award, Clock, Filter, Search } from 'lucide-react';
 import { ParticipantList } from './progress/ParticipantList';
 import { ProgressCharts } from './progress/ProgressCharts';
 import { MilestoneTracker } from './progress/MilestoneTracker';
+import { ParticipantDetailsModal } from './progress/ParticipantDetailsModal';
 
 const overviewStats = [
   { label: 'Total Participants', value: '247', change: '+5.2%', icon: Users, color: 'blue' },
@@ -14,6 +15,8 @@ const overviewStats = [
 export function ProgressTracker() {
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedParticipant, setSelectedParticipant] = useState<any>(null);
+  const [showParticipantDetails, setShowParticipantDetails] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -100,8 +103,26 @@ export function ProgressTracker() {
             </button>
           </div>
         </div>
-        <ParticipantList searchQuery={searchQuery} filter={selectedFilter} />
+        <ParticipantList 
+          searchQuery={searchQuery} 
+          filter={selectedFilter}
+          onViewDetails={(participant) => {
+            setSelectedParticipant(participant);
+            setShowParticipantDetails(true);
+          }}
+        />
       </div>
+
+      {/* Participant Details Modal */}
+      {showParticipantDetails && selectedParticipant && (
+        <ParticipantDetailsModal
+          participant={selectedParticipant}
+          onClose={() => {
+            setShowParticipantDetails(false);
+            setSelectedParticipant(null);
+          }}
+        />
+      )}
     </div>
   );
 }

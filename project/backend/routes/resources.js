@@ -1,5 +1,6 @@
 import express from 'express';
 import { executeQuery } from '../config/database.js';
+import { authenticateToken } from '../middleware/auth.js';
 import crypto from 'crypto';
 import multer from 'multer';
 import path from 'path';
@@ -29,6 +30,7 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
+      // Documents
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -36,22 +38,82 @@ const upload = multer({
       'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.oasis.opendocument.text',
+      'application/vnd.oasis.opendocument.presentation',
+      'application/vnd.oasis.opendocument.spreadsheet',
+      'application/rtf',
+      
+      // Videos
       'video/mp4',
       'video/avi',
       'video/quicktime',
+      'video/x-msvideo',
+      'video/webm',
+      'video/x-ms-wmv',
+      
+      // Images
       'image/jpeg',
+      'image/jpg',
       'image/png',
       'image/gif',
+      'image/bmp',
+      'image/tiff',
+      'image/svg+xml',
+      'image/webp',
+      
+      // Archives
       'application/zip',
       'application/x-rar-compressed',
+      'application/x-7z-compressed',
+      'application/x-tar',
+      'application/gzip',
+      
+      // Text files
       'text/plain',
-      'text/html'
+      'text/html',
+      'text/css',
+      'text/javascript',
+      'application/javascript',
+      'text/csv',
+      'application/json',
+      'text/xml',
+      'application/xml',
+      
+      // Audio files
+      'audio/mpeg',
+      'audio/wav',
+      'audio/ogg',
+      'audio/mp3',
+      'audio/mp4',
+      
+      // Other common formats
+      'application/octet-stream', // Generic binary file
+      'application/x-msdownload' // .exe files (for educational purposes)
     ];
     
-    if (allowedTypes.includes(file.mimetype)) {
+    // Also allow files by extension as fallback
+    const allowedExtensions = [
+      '.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx',
+      '.odt', '.odp', '.ods', '.rtf',
+      '.mp4', '.avi', '.mov', '.webm', '.wmv',
+      '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.svg', '.webp',
+      '.zip', '.rar', '.7z', '.tar', '.gz',
+      '.txt', '.html', '.css', '.js', '.csv', '.json', '.xml',
+      '.mp3', '.wav', '.ogg',
+      '.exe', '.msi', '.deb', '.rpm'
+    ];
+    
+    const fileExtension = path.extname(file.originalname).toLowerCase();
+    
+    if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExtension)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, MP4, AVI, MOV, JPG, PNG, GIF, ZIP, RAR, TXT, and HTML files are allowed.'));
+      console.log('File type rejected:', { 
+        mimetype: file.mimetype, 
+        originalname: file.originalname, 
+        extension: fileExtension 
+      });
+      cb(new Error(`Invalid file type. File: ${file.originalname}, MIME type: ${file.mimetype}. Please use supported file formats.`));
     }
   }
 });
@@ -176,9 +238,12 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     console.log('🔧 Database insert data:', [resourceId, title, safeDescription, type, safeFormat, safeCategory, safeUrl, safeFileSize, safeMimeType, JSON.stringify(safeTags), safeStatus, safeIsPublic, safeVersion, safeProgramId, safeMonthNumber, safeComponentId, safeWorkshopId, safeAgendaItemId, safeLearningEventId, safeAssignedToUserId, safeResourceContext]);
 
+    // Ensure all values are properly converted to null if undefined
+    const safeCreatedBy = req.user?.id || 'system'; // Use 'system' as default for now
+    
     const result = await executeQuery(
-      'INSERT INTO resources (id, title, description, type, format, category, url, file_size, mime_type, tags, status, is_public, version, program_id, month_number, component_id, workshop_id, agenda_item_id, learning_event_id, assigned_to_user_id, resource_context) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [resourceId, title, safeDescription, type, safeFormat, safeCategory, safeUrl, safeFileSize, safeMimeType, JSON.stringify(safeTags), safeStatus, safeIsPublic, safeVersion, safeProgramId, safeMonthNumber, safeComponentId, safeWorkshopId, safeAgendaItemId, safeLearningEventId, safeAssignedToUserId, safeResourceContext]
+      'INSERT INTO resources (id, title, description, type, format, category, url, file_size, mime_type, tags, status, is_public, version, program_id, month_number, component_id, workshop_id, agenda_item_id, learning_event_id, assigned_to_user_id, resource_context, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [resourceId, title, safeDescription, type, safeFormat, safeCategory, safeUrl, safeFileSize, safeMimeType, JSON.stringify(safeTags), safeStatus, safeIsPublic, safeVersion, safeProgramId, safeMonthNumber, safeComponentId, safeWorkshopId, safeAgendaItemId, safeLearningEventId, safeAssignedToUserId, safeResourceContext, safeCreatedBy]
     );
 
     const newResource = await executeQuery(
@@ -219,11 +284,22 @@ router.post('/', upload.single('file'), async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, type, url, file_path, file_size, mime_type, tags } = req.body;
+    const { 
+      title, description, type, category, tags, 
+      program_id, month_number, component_id 
+    } = req.body;
+
+    console.log('📝 Updating resource:', { id, title, description, type, category, tags, program_id, month_number, component_id });
+
+    // Convert undefined values to null for MySQL
+    const safeTags = tags ? (Array.isArray(tags) ? tags : JSON.parse(tags)) : [];
+    const safeProgramId = program_id || null;
+    const safeMonthNumber = month_number ? parseInt(month_number) : null;
+    const safeComponentId = component_id || null;
 
     const result = await executeQuery(
-      'UPDATE resources SET title = ?, description = ?, type = ?, url = ?, file_path = ?, file_size = ?, mime_type = ?, tags = ? WHERE id = ?',
-      [title, description, type, url, file_path, file_size, mime_type, JSON.stringify(tags), id]
+      'UPDATE resources SET title = ?, description = ?, type = ?, category = ?, tags = ?, program_id = ?, month_number = ?, component_id = ? WHERE id = ?',
+      [title, description, type, category, JSON.stringify(safeTags), safeProgramId, safeMonthNumber, safeComponentId, id]
     );
 
     if (result.affectedRows === 0) {
@@ -231,7 +307,7 @@ router.put('/:id', async (req, res) => {
     }
 
     const updatedResource = await executeQuery(
-      'SELECT * FROM resources WHERE id = ?',
+      'SELECT r.*, u.name as created_by_name FROM resources r LEFT JOIN users u ON r.created_by = u.id WHERE r.id = ?',
       [id]
     );
 

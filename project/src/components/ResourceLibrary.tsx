@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useResources } from '../hooks/useResources';
 import { usePathways } from '../hooks/useMySQL';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api';
 
 interface Resource {
   id: string;
@@ -229,7 +230,7 @@ export function ResourceLibrary() {
       });
 
       // Start upload
-      xhr.open('POST', `${import.meta.env.VITE_API_URL}/resources`);
+      xhr.open('POST', API_ENDPOINTS.RESOURCES);
       xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('auth_token')}`);
       xhr.send(formData);
     } catch (error) {
@@ -250,7 +251,7 @@ export function ResourceLibrary() {
       description: resource.description,
       type: resource.type as any,
       category: resource.category as any,
-      tags: resource.tags.join(', '),
+      tags: Array.isArray(resource.tags) ? resource.tags.join(', ') : (resource.tags || ''),
       programId: resource.programId || '',
       monthNumber: resource.monthNumber || null,
       componentId: resource.componentId || ''
@@ -276,13 +277,13 @@ export function ResourceLibrary() {
         description: editForm.description,
         type: editForm.type,
         category: editForm.category,
-        tags: editForm.tags ? editForm.tags.split(',').map(tag => tag.trim()) : [],
+        tags: editForm.tags ? editForm.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0) : [],
         program_id: editForm.programId || null,
         month_number: editForm.monthNumber || null,
         component_id: editForm.componentId || null
       };
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/resources/${editingResource.id}`, {
+      const response = await fetch(API_ENDPOINTS.RESOURCE_BY_ID(editingResource.id), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -300,6 +301,9 @@ export function ResourceLibrary() {
       setUploadStatus('Resource updated successfully!');
       console.log('Resource updated successfully');
       
+      // Refresh the resources list
+      await refetch();
+      
       // Reset form and close modal
       setEditForm({
         title: '',
@@ -315,9 +319,6 @@ export function ResourceLibrary() {
       setShowEditModal(false);
       setUploadProgress(0);
       setUploadStatus('');
-      
-      // Refresh resources list
-      await refetch();
       
       alert('Resource updated successfully!');
     } catch (error) {
@@ -607,7 +608,7 @@ export function ResourceLibrary() {
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       // Create download link
-                                      const downloadUrl = `${import.meta.env.VITE_API_URL}/resources/${resource.id}/download`;
+                                      const downloadUrl = `${API_BASE_URL}/resources/${resource.id}/download`;
                                       const link = document.createElement('a');
                                       link.href = downloadUrl;
                                       link.download = `${resource.title}.${resource.format}`;
@@ -741,7 +742,7 @@ export function ResourceLibrary() {
                             onClick={(e) => {
                               e.stopPropagation();
                               // Create download link
-                              const downloadUrl = `${import.meta.env.VITE_API_URL}/resources/${resource.id}/download`;
+                              const downloadUrl = `${API_BASE_URL}/resources/${resource.id}/download`;
                               const link = document.createElement('a');
                               link.href = downloadUrl;
                               link.download = `${resource.title}.${resource.format}`;
@@ -851,7 +852,7 @@ export function ResourceLibrary() {
                         className="p-2 text-slate-400 hover:text-green-600 transition-colors"
                         onClick={() => {
                           // Create download link
-                          const downloadUrl = `${import.meta.env.VITE_API_URL}/resources/${resource.id}/download`;
+                          const downloadUrl = `${API_BASE_URL}/resources/${resource.id}/download`;
                           const link = document.createElement('a');
                           link.href = downloadUrl;
                           link.download = `${resource.title}.${resource.format}`;
@@ -898,7 +899,10 @@ export function ResourceLibrary() {
             <Upload className="w-4 h-4" />
             Upload Resource
           </button>
-          <button className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 transition-colors">
+          <button 
+            onClick={() => setShowUploadModal(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 transition-colors"
+          >
             <Plus className="w-4 h-4" />
             Create New
           </button>
@@ -1337,7 +1341,7 @@ export function ResourceLibrary() {
                 <button 
                   onClick={() => {
                     // Create download link
-                    const downloadUrl = `${import.meta.env.VITE_API_URL}/resources/${selectedResource.id}/download`;
+                    const downloadUrl = `${API_BASE_URL}/resources/${selectedResource.id}/download`;
                     const link = document.createElement('a');
                     link.href = downloadUrl;
                     link.download = `${selectedResource.title}.${selectedResource.format}`;

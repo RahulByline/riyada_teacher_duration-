@@ -1,5 +1,6 @@
 import express from 'express';
 import { executeQuery } from '../config/database.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -59,13 +60,19 @@ router.post('/', async (req, res) => {
       availability, notes
     } = req.body;
 
+    console.log('📝 Received teacher nomination data:', {
+      first_name, last_name, email, phone, position, department, school,
+      years_experience, qualifications, subjects, cefr_level, training_needs,
+      availability, notes
+    });
+
     // Check for undefined values (which MySQL2 doesn't allow)
     if (first_name === undefined || last_name === undefined || email === undefined || position === undefined || school === undefined || years_experience === undefined) {
       console.log('❌ Undefined values detected:', { first_name, last_name, email, position, school, years_experience });
       return res.status(400).json({ error: 'Required fields cannot be undefined' });
     }
 
-    if (!first_name || !last_name || !email || !position || !school || !years_experience) {
+    if (!first_name || !last_name || !email || !position || !school || years_experience === undefined || years_experience === null) {
       return res.status(400).json({ error: 'Required fields missing' });
     }
 
@@ -83,7 +90,7 @@ router.post('/', async (req, res) => {
         years_experience, JSON.stringify(qualifications || []), 
         JSON.stringify(subjects || []), cefr_level, 
         JSON.stringify(training_needs || []), availability, 
-        req.user?.id || null, notes
+        req.user?.id || 'system', notes
       ]
     );
 
