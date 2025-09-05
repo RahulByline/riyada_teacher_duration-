@@ -3,6 +3,7 @@ import { Clock, Users, MapPin, Plus, Calendar, List } from 'lucide-react';
 
 import { ResourceManager } from './workshop/ResourceManager';
 import { WorkshopAgendaManager } from './workshop/WorkshopAgendaManager';
+import { ResourceLinker } from './ResourceLinker';
 import { useWorkshops } from '../hooks/useWorkshops';
 
 export function WorkshopPlanner() {
@@ -62,7 +63,12 @@ export function WorkshopPlanner() {
         {workshops.map((workshop) => (
           <div key={workshop.id} className="bg-white rounded-xl p-6 border border-slate-200 hover:shadow-lg transition-shadow cursor-pointer">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-slate-900 leading-tight">{workshop.title}</h3>
+              <div>
+                <h3 className="font-semibold text-slate-900 leading-tight">{workshop.title}</h3>
+                {workshop.pathwayTitle && (
+                  <p className="text-xs text-slate-500 mt-1">Part of: {workshop.pathwayTitle}</p>
+                )}
+              </div>
               <span className={`text-xs px-2 py-1 rounded-full ${
                 workshop.status === 'ready' ? 'bg-green-100 text-green-700' :
                 workshop.status === 'planning' ? 'bg-yellow-100 text-yellow-700' :
@@ -83,7 +89,7 @@ export function WorkshopPlanner() {
               </div>
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <Users className="w-4 h-4" />
-                {workshop.expectedParticipants} participants
+                {workshop.pathwayParticipantCount || 0} participants
               </div>
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <MapPin className="w-4 h-4" />
@@ -160,7 +166,12 @@ export function WorkshopPlanner() {
           <div className="p-6">
             {activeView === 'overview' && (
               <div className="space-y-4">
-                <h3 className="text-xl font-semibold text-slate-900">{selectedWorkshop.title}</h3>
+                <div>
+                  <h3 className="text-xl font-semibold text-slate-900">{selectedWorkshop.title}</h3>
+                  {selectedWorkshop.pathwayTitle && (
+                    <p className="text-sm text-slate-500 mt-1">Part of: {selectedWorkshop.pathwayTitle}</p>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-sm text-slate-600">
@@ -174,7 +185,7 @@ export function WorkshopPlanner() {
                     <div className="flex items-center gap-2 text-sm text-slate-600">
                       <div className="flex items-center gap-2 text-sm text-slate-600">
                         <Users className="w-4 h-4" />
-                        <span>Participants: {selectedWorkshop.expectedParticipants}</span>
+                        <span>Participants: {selectedWorkshop.pathwayParticipantCount || 0}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-slate-600">
@@ -204,8 +215,18 @@ export function WorkshopPlanner() {
 
 
 
-            {activeView === 'resources' && (
-              <ResourceManager />
+            {activeView === 'resources' && selectedWorkshop && (
+              <div className="space-y-6">
+                <ResourceLinker 
+                  targetId={selectedWorkshop.id}
+                  targetType="workshop"
+                  targetName={selectedWorkshop.title}
+                />
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold text-slate-900 mb-4">All Resources</h3>
+                  <ResourceManager />
+                </div>
+              </div>
             )}
           </div>
         </div>

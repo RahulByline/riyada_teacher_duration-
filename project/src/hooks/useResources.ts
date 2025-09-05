@@ -21,6 +21,11 @@ interface Resource {
   isPublic: boolean;
   version: string;
   status: 'draft' | 'review' | 'approved' | 'archived';
+  resource_context?: string;
+  workshop_id?: string;
+  agenda_item_id?: string;
+  learning_event_id?: string;
+  assigned_to_user_id?: string;
 }
 
 export function useResources(programId?: string, monthNumber?: number, componentId?: string) {
@@ -60,7 +65,12 @@ export function useResources(programId?: string, monthNumber?: number, component
         tags: Array.isArray(resource.tags) ? resource.tags : (resource.tags ? JSON.parse(resource.tags) : []),
         isPublic: Boolean(resource.is_public),
         version: resource.version || '1.0',
-        status: resource.status || 'draft'
+        status: resource.status || 'draft',
+        resource_context: resource.resource_context || 'general',
+        workshop_id: resource.workshop_id || undefined,
+        agenda_item_id: resource.agenda_item_id || undefined,
+        learning_event_id: resource.learning_event_id || undefined,
+        assigned_to_user_id: resource.assigned_to_user_id || undefined
       }));
 
       setResources(formattedResources);

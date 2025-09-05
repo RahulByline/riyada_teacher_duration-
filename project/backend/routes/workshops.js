@@ -7,9 +7,16 @@ const router = express.Router();
 // Get all workshops
 router.get('/', async (req, res) => {
   try {
-    const workshops = await executeQuery(
-      'SELECT w.*, u.name as facilitator_name, p.title as pathway_title FROM workshops w LEFT JOIN users u ON w.facilitator_id = u.id LEFT JOIN pathways p ON w.pathway_id = p.id ORDER BY w.workshop_date DESC'
-    );
+    const workshops = await executeQuery(`
+      SELECT w.*, u.name as facilitator_name, p.title as pathway_title,
+             COUNT(DISTINCT pp.teacher_id) as pathway_participant_count
+      FROM workshops w 
+      LEFT JOIN users u ON w.facilitator_id = u.id 
+      LEFT JOIN pathways p ON w.pathway_id = p.id 
+      LEFT JOIN pathway_participants pp ON p.id = pp.pathway_id
+      GROUP BY w.id, u.name, p.title
+      ORDER BY w.workshop_date DESC
+    `);
     res.json({ workshops });
   } catch (error) {
     console.error('Get workshops error:', error);
@@ -21,10 +28,16 @@ router.get('/', async (req, res) => {
 router.get('/pathway/:pathwayId', async (req, res) => {
   try {
     const { pathwayId } = req.params;
-    const workshops = await executeQuery(
-      'SELECT w.*, u.name as facilitator_name FROM workshops w LEFT JOIN users u ON w.facilitator_id = u.id WHERE w.pathway_id = ? ORDER BY w.workshop_date DESC',
-      [pathwayId]
-    );
+    const workshops = await executeQuery(`
+      SELECT w.*, u.name as facilitator_name,
+             COUNT(DISTINCT pp.teacher_id) as pathway_participant_count
+      FROM workshops w 
+      LEFT JOIN users u ON w.facilitator_id = u.id 
+      LEFT JOIN pathway_participants pp ON w.pathway_id = pp.pathway_id
+      WHERE w.pathway_id = ? 
+      GROUP BY w.id, u.name
+      ORDER BY w.workshop_date DESC
+    `, [pathwayId]);
     res.json({ workshops });
   } catch (error) {
     console.error('Get pathway workshops error:', error);

@@ -15,9 +15,12 @@ import {
   Presentation,
   Users as GroupIcon,
   Target,
-  MessageSquare
+  MessageSquare,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { API_ENDPOINTS } from '../../config/api';
+import { ResourceLinker } from '../ResourceLinker';
 
 interface AgendaItem {
   id: string;
@@ -43,6 +46,7 @@ interface Workshop {
   duration: string;
   location?: string;
   expectedParticipants: number;
+  pathwayParticipantCount?: number;
   facilitator_id?: string;
   facilitator_name?: string;
   pathway_id?: string;
@@ -85,6 +89,7 @@ export function WorkshopAgendaManager({ workshop }: { workshop: Workshop }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<AgendaItem | null>(null);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchAgendaItems();
@@ -256,6 +261,16 @@ export function WorkshopAgendaManager({ workshop }: { workshop: Workshop }) {
     });
   };
 
+  const toggleExpandedItem = (itemId: string) => {
+    const newExpanded = new Set(expandedItems);
+    if (newExpanded.has(itemId)) {
+      newExpanded.delete(itemId);
+    } else {
+      newExpanded.add(itemId);
+    }
+    setExpandedItems(newExpanded);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -271,6 +286,9 @@ export function WorkshopAgendaManager({ workshop }: { workshop: Workshop }) {
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Workshop Agenda</h2>
           <p className="text-slate-600 mt-1">{workshop.title}</p>
+          {workshop.pathway_title && (
+            <p className="text-sm text-slate-500 mt-1">Part of: {workshop.pathway_title}</p>
+          )}
         </div>
                  <div className="flex gap-2">
            <button 
@@ -301,7 +319,7 @@ export function WorkshopAgendaManager({ workshop }: { workshop: Workshop }) {
           </div>
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-slate-500" />
-            <span className="text-sm text-slate-600">{workshop.expectedParticipants || 0} participants</span>
+            <span className="text-sm text-slate-600">{workshop.pathwayParticipantCount || 0} participants</span>
           </div>
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-slate-500" />
@@ -363,6 +381,17 @@ export function WorkshopAgendaManager({ workshop }: { workshop: Workshop }) {
                 
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => toggleExpandedItem(item.id)}
+                    className="p-2 text-slate-600 hover:text-slate-800 hover:bg-slate-50 rounded-lg transition-colors"
+                    title="Toggle Resources"
+                  >
+                    {expandedItems.has(item.id) ? (
+                      <ChevronDown className="w-4 h-4" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4" />
+                    )}
+                  </button>
+                  <button
                     onClick={() => setEditingItem(item)}
                     className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                   >
@@ -375,8 +404,19 @@ export function WorkshopAgendaManager({ workshop }: { workshop: Workshop }) {
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
-                             </div>
-             </div>
+              </div>
+              
+              {/* Expandable Resources Section */}
+              {expandedItems.has(item.id) && (
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                  <ResourceLinker 
+                    targetId={item.id}
+                    targetType="agenda"
+                    targetName={item.title}
+                  />
+                </div>
+              )}
+            </div>
              ))}
              
                            {/* Add Item Button */}

@@ -2,7 +2,6 @@ import React from 'react';
 import { Menu, Bell, User, GraduationCap, Edit3, LogOut } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { useBranding } from '../contexts/BrandingContext';
-import { RoleSwitcher } from './RoleSwitcher';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -121,8 +120,6 @@ export function Header({ onMenuClick, currentView }: HeaderProps) {
               <p className="text-sm font-medium text-slate-900">{user.name}</p>
               <p className="text-xs text-slate-500 capitalize">{user.role}</p>
             </div>
-            
-            <RoleSwitcher />
             
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <User className="w-4 h-4 text-white" />

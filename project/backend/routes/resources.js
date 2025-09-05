@@ -127,10 +127,18 @@ router.get('/:id', async (req, res) => {
 // Create new resource with file upload
 router.post('/', upload.single('file'), async (req, res) => {
   try {
-    const { title, description, type, format, category, tags, status, is_public, version, program_id, month_number, component_id } = req.body;
+    const { 
+      title, description, type, format, category, tags, status, is_public, version, 
+      program_id, month_number, component_id, workshop_id, agenda_item_id, 
+      learning_event_id, assigned_to_user_id, resource_context 
+    } = req.body;
     const uploadedFile = req.file;
 
-    console.log('📥 Received resource data:', { title, description, type, format, category, tags, status, is_public, version, program_id, month_number, component_id });
+    console.log('📥 Received resource data:', { 
+      title, description, type, format, category, tags, status, is_public, version, 
+      program_id, month_number, component_id, workshop_id, agenda_item_id, 
+      learning_event_id, assigned_to_user_id, resource_context 
+    });
     console.log('📁 Uploaded file:', uploadedFile ? { originalname: uploadedFile.originalname, size: uploadedFile.size, mimetype: uploadedFile.mimetype } : 'No file');
 
     // Check for undefined values (which MySQL2 doesn't allow)
@@ -155,17 +163,22 @@ router.post('/', upload.single('file'), async (req, res) => {
     const safeProgramId = program_id || null;
     const safeMonthNumber = month_number ? parseInt(month_number) : null;
     const safeComponentId = component_id || null;
+    const safeWorkshopId = workshop_id || null;
+    const safeAgendaItemId = agenda_item_id || null;
+    const safeLearningEventId = learning_event_id || null;
+    const safeAssignedToUserId = assigned_to_user_id || null;
+    const safeResourceContext = resource_context || 'general';
     const safeUrl = uploadedFile ? `/uploads/resources/${uploadedFile.filename}` : null;
     const safeMimeType = uploadedFile ? uploadedFile.mimetype : null;
 
     // Generate a UUID for the resource
     const resourceId = crypto.randomUUID();
 
-    console.log('🔧 Database insert data:', [resourceId, title, safeDescription, type, safeFormat, safeCategory, safeUrl, safeFileSize, safeMimeType, JSON.stringify(safeTags), safeStatus, safeIsPublic, safeVersion, safeProgramId, safeMonthNumber, safeComponentId]);
+    console.log('🔧 Database insert data:', [resourceId, title, safeDescription, type, safeFormat, safeCategory, safeUrl, safeFileSize, safeMimeType, JSON.stringify(safeTags), safeStatus, safeIsPublic, safeVersion, safeProgramId, safeMonthNumber, safeComponentId, safeWorkshopId, safeAgendaItemId, safeLearningEventId, safeAssignedToUserId, safeResourceContext]);
 
     const result = await executeQuery(
-      'INSERT INTO resources (id, title, description, type, format, category, url, file_size, mime_type, tags, status, is_public, version, program_id, month_number, component_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [resourceId, title, safeDescription, type, safeFormat, safeCategory, safeUrl, safeFileSize, safeMimeType, JSON.stringify(safeTags), safeStatus, safeIsPublic, safeVersion, safeProgramId, safeMonthNumber, safeComponentId]
+      'INSERT INTO resources (id, title, description, type, format, category, url, file_size, mime_type, tags, status, is_public, version, program_id, month_number, component_id, workshop_id, agenda_item_id, learning_event_id, assigned_to_user_id, resource_context) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [resourceId, title, safeDescription, type, safeFormat, safeCategory, safeUrl, safeFileSize, safeMimeType, JSON.stringify(safeTags), safeStatus, safeIsPublic, safeVersion, safeProgramId, safeMonthNumber, safeComponentId, safeWorkshopId, safeAgendaItemId, safeLearningEventId, safeAssignedToUserId, safeResourceContext]
     );
 
     const newResource = await executeQuery(
@@ -312,6 +325,191 @@ router.delete('/:id', async (req, res) => {
     res.json({ message: 'Resource deleted successfully' });
   } catch (error) {
     console.error('Delete resource error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get resources by workshop
+router.get('/workshop/:workshopId', async (req, res) => {
+  try {
+    const { workshopId } = req.params;
+    const resources = await executeQuery(`
+      SELECT r.*, u.name as created_by_name 
+      FROM resources r 
+      LEFT JOIN users u ON r.created_by = u.id 
+      WHERE r.workshop_id = ? OR r.id IN (
+        SELECT resource_id FROM resource_workshops WHERE workshop_id = ?
+      )
+      ORDER BY r.created_at DESC
+    `, [workshopId, workshopId]);
+    
+    const formattedResources = resources.map(resource => ({
+      ...resource,
+      tags: resource.tags || []
+    }));
+    
+    res.json({ resources: formattedResources });
+  } catch (error) {
+    console.error('Get resources by workshop error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get resources by agenda item
+router.get('/agenda/:agendaItemId', async (req, res) => {
+  try {
+    const { agendaItemId } = req.params;
+    const resources = await executeQuery(`
+      SELECT r.*, u.name as created_by_name, rai.resource_type, rai.display_order
+      FROM resources r 
+      LEFT JOIN users u ON r.created_by = u.id 
+      LEFT JOIN resource_agenda_items rai ON r.id = rai.resource_id
+      WHERE r.agenda_item_id = ? OR rai.agenda_item_id = ?
+      ORDER BY rai.display_order ASC, r.created_at DESC
+    `, [agendaItemId, agendaItemId]);
+    
+    const formattedResources = resources.map(resource => ({
+      ...resource,
+      tags: resource.tags || []
+    }));
+    
+    res.json({ resources: formattedResources });
+  } catch (error) {
+    console.error('Get resources by agenda item error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get resources by learning event
+router.get('/learning-event/:eventId', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const resources = await executeQuery(`
+      SELECT r.*, u.name as created_by_name 
+      FROM resources r 
+      LEFT JOIN users u ON r.created_by = u.id 
+      WHERE r.learning_event_id = ? OR r.id IN (
+        SELECT resource_id FROM resource_learning_events WHERE learning_event_id = ?
+      )
+      ORDER BY r.created_at DESC
+    `, [eventId, eventId]);
+    
+    const formattedResources = resources.map(resource => ({
+      ...resource,
+      tags: resource.tags || []
+    }));
+    
+    res.json({ resources: formattedResources });
+  } catch (error) {
+    console.error('Get resources by learning event error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Link resource to workshop
+router.post('/link/workshop', async (req, res) => {
+  try {
+    const { resource_id, workshop_id, resource_type, display_order } = req.body;
+    
+    if (!resource_id || !workshop_id) {
+      return res.status(400).json({ error: 'Resource ID and Workshop ID are required' });
+    }
+    
+    const linkId = crypto.randomUUID();
+    await executeQuery(
+      'INSERT INTO resource_workshops (id, resource_id, workshop_id, resource_type, display_order) VALUES (?, ?, ?, ?, ?)',
+      [linkId, resource_id, workshop_id, resource_type || 'optional', display_order || 0]
+    );
+    
+    res.status(201).json({ message: 'Resource linked to workshop successfully' });
+  } catch (error) {
+    console.error('Link resource to workshop error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Link resource to agenda item
+router.post('/link/agenda', async (req, res) => {
+  try {
+    const { resource_id, agenda_item_id, resource_type, display_order } = req.body;
+    
+    if (!resource_id || !agenda_item_id) {
+      return res.status(400).json({ error: 'Resource ID and Agenda Item ID are required' });
+    }
+    
+    const linkId = crypto.randomUUID();
+    await executeQuery(
+      'INSERT INTO resource_agenda_items (id, resource_id, agenda_item_id, resource_type, display_order) VALUES (?, ?, ?, ?, ?)',
+      [linkId, resource_id, agenda_item_id, resource_type || 'optional', display_order || 0]
+    );
+    
+    res.status(201).json({ message: 'Resource linked to agenda item successfully' });
+  } catch (error) {
+    console.error('Link resource to agenda item error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Link resource to learning event
+router.post('/link/learning-event', async (req, res) => {
+  try {
+    const { resource_id, learning_event_id, resource_type, display_order } = req.body;
+    
+    if (!resource_id || !learning_event_id) {
+      return res.status(400).json({ error: 'Resource ID and Learning Event ID are required' });
+    }
+    
+    const linkId = crypto.randomUUID();
+    await executeQuery(
+      'INSERT INTO resource_learning_events (id, resource_id, learning_event_id, resource_type, display_order) VALUES (?, ?, ?, ?, ?)',
+      [linkId, resource_id, learning_event_id, resource_type || 'optional', display_order || 0]
+    );
+    
+    res.status(201).json({ message: 'Resource linked to learning event successfully' });
+  } catch (error) {
+    console.error('Link resource to learning event error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Unlink resource from workshop
+router.delete('/unlink/workshop/:resourceId/:workshopId', async (req, res) => {
+  try {
+    const { resourceId, workshopId } = req.params;
+    
+    const result = await executeQuery(
+      'DELETE FROM resource_workshops WHERE resource_id = ? AND workshop_id = ?',
+      [resourceId, workshopId]
+    );
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Resource-workshop link not found' });
+    }
+    
+    res.json({ message: 'Resource unlinked from workshop successfully' });
+  } catch (error) {
+    console.error('Unlink resource from workshop error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Unlink resource from agenda item
+router.delete('/unlink/agenda/:resourceId/:agendaItemId', async (req, res) => {
+  try {
+    const { resourceId, agendaItemId } = req.params;
+    
+    const result = await executeQuery(
+      'DELETE FROM resource_agenda_items WHERE resource_id = ? AND agenda_item_id = ?',
+      [resourceId, agendaItemId]
+    );
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Resource-agenda item link not found' });
+    }
+    
+    res.json({ message: 'Resource unlinked from agenda item successfully' });
+  } catch (error) {
+    console.error('Unlink resource from agenda item error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

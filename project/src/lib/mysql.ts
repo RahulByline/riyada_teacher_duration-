@@ -371,6 +371,52 @@ class MySQLClient {
     });
   }
 
+  // Resource linking
+  async getResourcesByWorkshop(workshopId: string) {
+    return this.makeRequest(`/resources/workshop/${workshopId}`);
+  }
+
+  async getResourcesByAgendaItem(agendaItemId: string) {
+    return this.makeRequest(`/resources/agenda/${agendaItemId}`);
+  }
+
+  async getResourcesByLearningEvent(eventId: string) {
+    return this.makeRequest(`/resources/learning-event/${eventId}`);
+  }
+
+  async linkResourceToWorkshop(resourceId: string, workshopId: string, resourceType: string = 'optional', displayOrder: number = 0) {
+    return this.makeRequest('/resources/link/workshop', {
+      method: 'POST',
+      body: JSON.stringify({ resource_id: resourceId, workshop_id: workshopId, resource_type: resourceType, display_order: displayOrder }),
+    });
+  }
+
+  async linkResourceToAgendaItem(resourceId: string, agendaItemId: string, resourceType: string = 'optional', displayOrder: number = 0) {
+    return this.makeRequest('/resources/link/agenda', {
+      method: 'POST',
+      body: JSON.stringify({ resource_id: resourceId, agenda_item_id: agendaItemId, resource_type: resourceType, display_order: displayOrder }),
+    });
+  }
+
+  async linkResourceToLearningEvent(resourceId: string, learningEventId: string, resourceType: string = 'optional', displayOrder: number = 0) {
+    return this.makeRequest('/resources/link/learning-event', {
+      method: 'POST',
+      body: JSON.stringify({ resource_id: resourceId, learning_event_id: learningEventId, resource_type: resourceType, display_order: displayOrder }),
+    });
+  }
+
+  async unlinkResourceFromWorkshop(resourceId: string, workshopId: string) {
+    return this.makeRequest(`/resources/unlink/workshop/${resourceId}/${workshopId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async unlinkResourceFromAgendaItem(resourceId: string, agendaItemId: string) {
+    return this.makeRequest(`/resources/unlink/agenda/${resourceId}/${agendaItemId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Curriculum Management
   async getGrades() {
     return this.makeRequest('/curriculum/grades');

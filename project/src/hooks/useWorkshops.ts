@@ -9,9 +9,12 @@ interface Workshop {
   duration: string;
   expectedParticipants: number;
   actualParticipants: number;
+  pathwayParticipantCount?: number;
   location: string;
   facilitatorId?: string;
   facilitatorName?: string;
+  pathwayId?: string;
+  pathwayTitle?: string;
   status: 'draft' | 'planning' | 'ready' | 'in-progress' | 'completed' | 'cancelled';
   agenda: any[];
   resources: string[];
@@ -50,9 +53,12 @@ export function useWorkshops(pathwayId?: string) {
         duration: workshop.duration_hours || workshop.duration,
         expectedParticipants: workshop.max_participants || workshop.expected_participants || 0,
         actualParticipants: workshop.actual_participants || 0,
+        pathwayParticipantCount: workshop.pathway_participant_count || 0,
         location: workshop.location || '',
         facilitatorId: workshop.facilitator_id || undefined,
         facilitatorName: workshop.facilitator_name || undefined,
+        pathwayId: workshop.pathway_id || undefined,
+        pathwayTitle: workshop.pathway_title || undefined,
         status: workshop.status || 'draft',
         agenda: workshop.agenda || [],
         resources: workshop.resources || [],
