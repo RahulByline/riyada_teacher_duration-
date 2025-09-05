@@ -190,4 +190,22 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Get workshop agenda
+router.get('/:id/agenda', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const agenda = await executeQuery(`
+      SELECT * FROM workshop_agenda 
+      WHERE workshop_id = ? 
+      ORDER BY order_index ASC
+    `, [id]);
+    
+    res.json({ agenda });
+  } catch (error) {
+    console.error('Get workshop agenda error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
