@@ -38,6 +38,11 @@ interface Resource {
   isPublic: boolean;
   version: string;
   status: string;
+  resource_context?: string;
+  workshop_id?: string;
+  agenda_item_id?: string;
+  learning_event_id?: string;
+  assigned_to_user_id?: string;
 }
 
 
@@ -82,6 +87,7 @@ export function ResourceLibrary() {
   const [viewMode, setViewMode] = useState<'program-flow' | 'category' | 'all'>('program-flow');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [filterContext, setFilterContext] = useState('all');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedResource, setSelectedResource] = useState<any>(null);
   const [uploadForm, setUploadForm] = useState({
@@ -408,6 +414,7 @@ export function ResourceLibrary() {
                          resource.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesCategory = filterCategory === 'all' || resource.category === filterCategory;
     const matchesProgram = resource.programId === selectedProgram;
+    const matchesContext = filterContext === 'all' || resource.resource_context === filterContext;
     const matchesMonth = selectedMonth === null || resource.monthNumber === selectedMonth;
     const matchesComponent = selectedComponent === null || resource.componentId === selectedComponent;
     
@@ -423,7 +430,7 @@ export function ResourceLibrary() {
       });
     }
     
-    return matchesSearch && matchesCategory && matchesProgram && matchesMonth && matchesComponent;
+    return matchesSearch && matchesCategory && matchesProgram && matchesContext && matchesMonth && matchesComponent;
   });
   
   // Debug logging for filtered results
@@ -982,6 +989,20 @@ export function ResourceLibrary() {
             <option value="assessment-tools">Assessment Tools</option>
             <option value="templates">Templates</option>
             <option value="multimedia">Multimedia</option>
+          </select>
+          
+          <select 
+            value={filterContext}
+            onChange={(e) => setFilterContext(e.target.value)}
+            className="px-4 py-2 border border-slate-200 rounded-lg text-sm"
+          >
+            <option value="all">All Contexts</option>
+            <option value="pathway">Pathway Resources</option>
+            <option value="workshop">Workshop Resources</option>
+            <option value="agenda_item">Agenda Item Resources</option>
+            <option value="learning_event">Learning Event Resources</option>
+            <option value="user_specific">User Specific</option>
+            <option value="general">General Resources</option>
           </select>
         </div>
       </div>
